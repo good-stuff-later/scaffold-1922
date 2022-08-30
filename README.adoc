@@ -123,6 +123,15 @@ election "for efficiency" and that is a much better situation to be in.
 
 
 
+
+## Configuration
+
+
+
+
+
+
+
 ## Table
 
 
@@ -354,53 +363,43 @@ can be used in an Liquibase `dbms` Precondition. For reference, here's a list of
 
 === Configuration
 
-The behavior of the module can be changed with the following configuration properties, prefixed with `preliquibase.`:
 
-[cols=4*,options=header]
+WARNING: It is important that all instances (candidates) participating
+in a leader election for a given role use exactly the same time configuration 
+values (those values expressed as a duration: `intervalMs`, `assumeDeadMs`,
+etc). If this is not the case then the leader election process will be
+non-deterministic.
+
+Reasonable defaults are defined for most properties.
+
+
+[cols=3*,options=header]
 |===
 |Property name
 |Type
-|Default
 |Description
 
-|enabled
-|boolean
-|true
-|If the module is enabled or not?
+|assumeDeadMs
+|integer
+|Defines the number of milliseconds after which the Leader Elector will decide that a leader is dead if it hasn't renewed its lease within this time. Therefore, if a lease is older than this value then the Leader Elector will assume the leader it dead - as the candidate hasn't properly renewed its own lease - and the lease is now up for grabs by another candidate. Meaning another candidate may now assume leader role.
 
-|dbPlatformCode
+If set, the value must be at least 3 seconds larger than `intervalMs``. It is suggested to use a value 2x `intervalMs`. The difference between `assumeDeadMs`` and `intervalMs`` is the allowance for how late in renewing its lease a leader can be without being dethroned. The difference must allow for network latencies, garbage collection stalls, temporary CPU starvation or any reason which will cause the renewal process to be late.
+
+If not set: Defaults to 2x `intervalMs`, however at least 3 seconds.
+
+|candidateId
 |String
-|null
-|Database platform code used for locating SQL scripts which uses the naming form `preliquibase/DBPLATFORMCODE.sql` from classpath. 
-Setting this property will override auto-detection of the database platform being used. 
+|Defines an id for the current candidate. The value must be unique between all candidates participating
+in a leader election for the same role.
 
-|sqlScriptReferences
-|CSV 
-|`classpath:/preliquibase/`
-|Comma-separated list of Spring Resource locations for where to find the SQL scripts 
-which the module will execute. See <<sql_scripts_lookup>> for more information.
+The value must be no longer than CANDIDATEID_MAX_LENGTH. 
+If longer, it will automatically be truncated to this length.
 
-|continueOnError
-|boolean 
-|false
-|Whether to stop with an RuntimeException if an error occurs while executing the SQL script. If `false`, script execution
-will stop on first error and throw RuntimeException. If `true`, script execution will continue even there are errors
-in the script and errors will be logged if logging level for `org.springframework.jdbc.datasource.init` is at least
-`DEBUG`.
+Defaults to `NodeIdUtils.getPidAndComputerName()`` if not set. For example: `32399@myhost`.
+This will be sufficient for most use cases. Another possibility is to use an UUID value.
 
-Setting `continueOnError` to `true` should generally be avoided. It is probably a sign of your SQL script file(s) not being idempotent. 
-You should work on that first and only use this setting as a last resort.
+The NodeIdUtils class defines useful methods which can act as input to this value.
 
-|separator
-|String
-|;
-|The statement separator used in the SQL script. For most database engines this is the semi-colon character.
-
-|sqlScriptEncoding
-|String
-|UTF-8
-|The character encoding for the SQL script file(s). The value must be the name of a JDK Charset, such as
-`US-ASCII`, `ISO-8859-1`, `UTF-8` or `UTF-16`.
 
 |===
 
