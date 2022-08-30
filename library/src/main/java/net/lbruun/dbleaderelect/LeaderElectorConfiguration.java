@@ -461,7 +461,7 @@ public class LeaderElectorConfiguration {
          * @see #withTableName(java.lang.String) 
          * @throws LeaderElectorConfigurationException if argument 
          *    contains a dot character ('.').
-         * @param schemaName unqualified schema name or {@code null}
+         * @param schemaName schema name or {@code null}
          */
         public final Builder withSchemaName(String schemaName) {
             if (schemaName != null) {
@@ -541,7 +541,7 @@ public class LeaderElectorConfiguration {
          * will go to the database and either renew its current lease (if
          * the candidate is currently the leader) or check if other leader has
          * died and a new one should be promoted. The value is the
-         * interval <i>between</i> the checks (not including the the check 
+         * interval <i>between</i> the checks (not including the check 
          * itself).
          * 
          * <p>

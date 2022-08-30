@@ -422,7 +422,34 @@ The NodeIdUtils class defines useful methods which can act as input to this valu
 
 Defaults to `null` if not set. A value of `null` means the database type will be auto-detected at startup. 
 
+|`schemaName`
+|String
+|Defines the name of the schema of the table which is used to keep track of current leadership. 
+The schema must already exist.
 
+Defaults to `null` if not set. The `null` value means to use the default schema of the database session.
+
+WARNING: For MySQL/MariaDB the concept of "schema" is effectively synonymous with a database. Therefore, if this setting is used with MySQL/MariaDB it means in which _database_ the table is located.
+
+|`tableName`
+|String
+|Unqualified name of the table which is used to keep track of current leadership. The table must already exist.
+
+Defaults to 
+https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect/LeaderElectorConfiguration.html#DEFAULT_TABLENAME[DEFAULT_TABLENAME]
+if not set.
+
+|`intervalMs`
+|integer
+|Defines how often the lease is checked and/or renewed, in milliseconds. Every `intervalMs` a background thread in the Leader Elector will go to the database and either renew its current lease (if the candidate is currently the leader) or check if other leader has died and a new one should be promoted. The value is the interval between the checks (not including the check itself).
+
+The lower this value is the smaller the amount of time which may pass without a leader.
+If leadership gaps are generally undesirable then the value should be lowered. 
+However, the lower the value the more strain on the database, especially with many candidates.
+
+Defaults to 
+https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect/LeaderElectorConfiguration.html#DEFAULT_INTERVAL_MS[DEFAULT_INTERVAL_MS]
+if not set.
 
 |===
 
