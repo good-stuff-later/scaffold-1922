@@ -451,6 +451,27 @@ Defaults to
 https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect/LeaderElectorConfiguration.html#DEFAULT_INTERVAL_MS[DEFAULT_INTERVAL_MS]
 if not set.
 
+
+|`createTable`
+|boolean
+|If the leader election table should be created if it does not already exist?. If `true``, then at every instantiation of LeaderElector class a check will be made to see if the table already exists. If not, it will be created.
+
+The table will be created like this (generic form):
+
+[source,sql]
+----
+ CREATE TABLE [<configuration.schemaName>.]<configuration.tableName>
+  (
+     role_id               VARCHAR(20)    NOT NULL,
+     candidate_id          VARCHAR(256)   NOT NULL,
+     last_seen_timestamp   BIGINT         NOT NULL,
+     lease_counter         BIGINT         NOT NULL,
+     PRIMARY KEY(role_id)
+  )
+----
+
+(with column types replaced as appropriate for the given database engine)
+
 |===
 
 === Examples
