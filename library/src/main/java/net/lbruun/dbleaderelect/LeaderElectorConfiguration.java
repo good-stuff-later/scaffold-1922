@@ -435,7 +435,7 @@ public class LeaderElectorConfiguration {
          * variations of the SQL grammar between database engines.
          * 
          * <p>
-         * Defaults to {@code null} is not set. A value of {@code null} means
+         * Defaults to {@code null} if not set. A value of {@code null} means
          * the database type will be auto-detected at startup.
          * 
          * @param databaseEngine

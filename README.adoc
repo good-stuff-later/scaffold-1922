@@ -380,7 +380,7 @@ Reasonable defaults are defined for most properties.
 |Type
 |Description
 
-|assumeDeadMs
+|`assumeDeadMs`
 |integer
 |Defines the number of milliseconds after which the Leader Elector will decide that a leader is dead if it hasn't renewed its lease within this time. If a lease is older than this value, then the Leader Elector will assume the leader is dead - as leader candidate hasn't properly renewed its own lease - and the lease is now up for grabs by another candidate. Meaning another candidate may now assume leader role.
 
@@ -388,7 +388,7 @@ If set, the value must be at least 3 seconds larger than `intervalMs`. It is sug
 
 If not set: Defaults to 2x `intervalMs`, however at least 3 seconds.
 
-|roleId
+|`roleId`
 |String
 |Role to compete for. Candidates compete for a particular role. Each role is an election of its own. 
 
@@ -400,7 +400,7 @@ Defaults to
 https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect/LeaderElectorConfiguration.html#DEFAULT_ROLEID[DEFAULT_ROLEID], 
 if not set.
 
-|candidateId
+|`candidateId`
 |String
 |Defines an id for the current candidate. The value must be unique between all candidates participating
 in a leader election for the same role.
@@ -415,6 +415,13 @@ if not set. For example: `32399@myhost`.
 This will be sufficient for most use cases. Another possibility is to use an UUID value.
 
 The NodeIdUtils class defines useful methods which can act as input to this value.
+
+|`databaseEngine`
+|https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect//DatabaseEngine.html[Enum]
+|Defines the type of database in use. The Leader Elector needs to know which type of database engine is in use as there are slight variations of the SQL grammar between database engines.
+
+Defaults to `null` if not set. A value of `null` means the database type will be auto-detected at startup. 
+
 
 
 |===
