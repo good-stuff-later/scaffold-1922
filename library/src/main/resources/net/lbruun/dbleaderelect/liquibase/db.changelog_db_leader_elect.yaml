@@ -21,7 +21,10 @@
 #
 # You must supply the following parameters:
 #   - 'dbleaderelect.tablename' : Name of the table (without any form of prefix)
-#   - 'dbleaderelect.schemaname' : Name of schema where table lives
+#   - 'dbleaderelect.schemaname' : Name of schema where table lives. If the database
+#         does not support the concept of a schema or if you simply want to use
+#         the default one, then set this parameter to an empty string (don't set
+#         it to null, it won't work)
 #
 databaseChangeLog:
   - changeSet:

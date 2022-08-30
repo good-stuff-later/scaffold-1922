@@ -28,10 +28,11 @@ import net.lbruun.dbleaderelect.internal.events.EventHelpers;
 import net.lbruun.dbleaderelect.LeaderElectorConfiguration;
 import net.lbruun.dbleaderelect.exception.LeaderElectorExceptionNonRecoverable;
 import net.lbruun.dbleaderelect.exception.LeaderElectorExceptionRecoverable;
-import net.lbruun.dbleaderelect.internal.sqltexts.SQLTexts;
+import net.lbruun.dbleaderelect.internal.sql.SQLCmds;
 import net.lbruun.dbleaderelect.LeaderElectorListener;
 import net.lbruun.dbleaderelect.exception.LeaderElectorException;
-import static net.lbruun.dbleaderelect.LeaderElector.NO_LEADER_CANDIDATE_ID;
+import net.lbruun.dbleaderelect.internal.core.RowInLeaderElectionTable.CurrentLeaderDbStatus;
+import net.lbruun.dbleaderelect.internal.utils.SQLUtils;
 
 /**
  *
@@ -39,8 +40,8 @@ import static net.lbruun.dbleaderelect.LeaderElector.NO_LEADER_CANDIDATE_ID;
 public class SQLLeaderElect {
 
     private final LeaderElectorConfiguration configuration;
-    private final SQLTexts sqlTexts;
-    private boolean currentlyAmLeader = false;
+    private final SQLCmds sqlCmds;
+    private volatile boolean currentlyAmLeader = false;
     private int noOfConsecutiveTransientErrors = 0;
     private volatile boolean hasHadSuccessfulExection = false;
     
@@ -60,7 +61,7 @@ public class SQLLeaderElect {
         this.configuration = configuration;
         this.myRoleId = configuration.getRoleId();
         this.myCandidateId = configuration.getCandidateId();
-        this.sqlTexts = SQLTexts.getSQL(configuration);
+        this.sqlCmds = SQLCmds.getSQL(configuration);
         this.tableNameDisplay = tableNameDisplay;
     }
     
@@ -68,38 +69,48 @@ public class SQLLeaderElect {
         return currentlyAmLeader;
     }
     
+    
+    public void ensureTable() throws SQLException {
+        try (Connection connnection = this.dataSource.getConnection()) {
+            if (!SQLUtils.tableExists(connnection, configuration.getSchemaName(), configuration.getTableName())) {
+                configuration.getLeaderElectorLogger().logInfo(this.getClass(), "Creating table " + tableNameDisplay);
+                try (PreparedStatement createTableStmt = sqlCmds.getCreateTableStmt(connnection)) {
+                    createTableStmt.execute();
+                }
+            }
+        }
+    }
     public void ensureRoleRow() throws SQLException {
         try (Connection connnection = this.dataSource.getConnection()) {
-            try (PreparedStatement p = sqlTexts.getInsertRoleSQL(connnection, this.configuration.getRoleId())) {
-                p.executeUpdate();
+            try (PreparedStatement p = sqlCmds.getInsertRoleStmt(connnection, this.configuration.getRoleId())) {
+                // Some of the database we support do not report a correct
+                // 'update count' (presumably becuase if the statement is some
+                // procedural logic - rather than a simple INSERT - then it is
+                // not possible for the driver to tell the number of rows affected)
+                p.execute();
             }
         }
     }
     
+    
+    
     private void affirmLeadership(Connection connection, String roleId, String candidateId) 
             throws SQLException, LeaderElectorExceptionNonRecoverable {
-        try (PreparedStatement pstmt = connection.prepareStatement(sqlTexts.getAffirmLeadershipSQL())) {
-            pstmt.setString(1, roleId);
-            pstmt.setString(2, candidateId);
+        try (PreparedStatement pstmt = sqlCmds.getAffirmLeadershipStmt(connection, roleId, candidateId)) {
             executeUpdate(pstmt);
         }
     }
     
     private void assumeLeadership(Connection connection, String roleId, String candidateId, long newLeaseCounter) 
             throws SQLException, LeaderElectorExceptionNonRecoverable {
-        try (PreparedStatement pstmt = connection.prepareStatement(sqlTexts.getAssumeLeadershipSQL())) {
-            pstmt.setString(1, candidateId);
-            pstmt.setLong(2, newLeaseCounter);
-            pstmt.setString(3, roleId);
+        try (PreparedStatement pstmt = sqlCmds.getAssumeLeadershipStmt(connection, roleId, candidateId, newLeaseCounter)) {
             executeUpdate(pstmt);
         }
     }
     
     private void relinquishLeadership(Connection connection, String roleId, String candidateId) 
             throws SQLException, LeaderElectorExceptionNonRecoverable {
-        try (PreparedStatement pstmt = connection.prepareStatement(sqlTexts.getRelinquishLeadershipSQL())) {
-            pstmt.setString(1, roleId);
-            pstmt.setString(2, candidateId);
+        try (PreparedStatement pstmt = sqlCmds.getRelinquishLeadershipStmt(connection, roleId, candidateId)) {
             executeUpdate(pstmt);
         }
     }
@@ -126,8 +137,7 @@ public class SQLLeaderElect {
             boolean originalAutoCommit = connection.getAutoCommit();
             connection.setAutoCommit(false);
 
-            try ( PreparedStatement preparedStatement = connection.prepareStatement(sqlTexts.getSelectSQL())) {
-                preparedStatement.setString(1, myRoleId);
+            try ( PreparedStatement preparedStatement = sqlCmds.getSelectStmt(connection, myRoleId)) {
                 // Set a timeout. We do not wish to wait for the database lock forever.
                 preparedStatement.setQueryTimeout(configuration.getQueryTimeoutSecs());
 
@@ -135,6 +145,7 @@ public class SQLLeaderElect {
                     event = executeInsideTableLock(connection, rs, wasLeaderAtStartOfElection, relinquish);
                 }
                 connection.commit(); // release table lock
+                noOfConsecutiveTransientErrors = 0;  // reset
             } catch (SQLTransientException | SQLRecoverableException ex) {
                 noOfConsecutiveTransientErrors++;
                 if (noOfConsecutiveTransientErrors == 3) {
@@ -159,11 +170,12 @@ public class SQLLeaderElect {
             }
         } catch (SQLTransientException ex) {
             // Errors obtaining a connection. Note that Hikari turns *any* exception 
-            // related to obtaining a connection into an exception of type 'SQLTransientConnectionException'
-            // no matter what the exception from the JDBC driver is.
+            // related to obtaining a connection into an exception of type 
+            // 'SQLTransientConnectionException' no matter what the exception from the JDBC driver is.
             if (hasHadSuccessfulExection) {
                 errorHolder = addError(errorHolder, new LeaderElectorExceptionRecoverable("No longer able to connect to database", ex));
             } else {
+                // if a JDBC Connection Pool is used then this is unlikely to happen.
                 errorHolder = addError(errorHolder, new LeaderElectorExceptionNonRecoverable("Cannot connect to database (first time)", ex));
             }
         } catch (Exception ex) {
@@ -200,13 +212,13 @@ public class SQLLeaderElect {
             if (rows > 1) {
                 throw new LeaderElectorExceptionNonRecoverable("Table " + tableNameDisplay + " has more than one row. This is unexpected. It must contain exactly one row.");
             }
-            RowInLeaderElectionTable row = new RowInLeaderElectionTable(rs, myCandidateId);
-            long lastSeenTimestampMillis = row.getLastSeenTimestampMillis();
-            long nowUTCMillis = row.getNowUTCMillis();
-            long leaseCounter = row.getLeaseCounter();
-            CurrentLeader currentLeader = row.getCurrentLeader();
-            long leaseAgeMillis = nowUTCMillis - lastSeenTimestampMillis;
-            boolean leaseExpired = (leaseAgeMillis >= configuration.getAssumeDeadMs());
+            final RowInLeaderElectionTable row = new RowInLeaderElectionTable(rs, myCandidateId);
+            final long lastSeenTimestampMillis = row.getLastSeenTimestampMillis();
+            final long nowUTCMillis = row.getNowUTCMillis();
+            final long leaseCounter = row.getLeaseCounter();
+            final RowInLeaderElectionTable.CurrentLeaderDbStatus currentLeader = row.getCurrentLeaderDbStatus();
+            final long leaseAgeMillis = nowUTCMillis - lastSeenTimestampMillis;
+            final boolean leaseExpired = (leaseAgeMillis >= configuration.getAssumeDeadMs());
 
             checkRowValidity(row);
 
@@ -226,7 +238,9 @@ public class SQLLeaderElect {
                 }
                 break;
                 case SOMEONE_ELSE:
-                    hasRelinquishedLeadership = false; // Reset because another candidate has assumed leadership
+                    if (!leaseExpired) {
+                        hasRelinquishedLeadership = false; // Reset because another candidate has assumed leadership
+                    } 
                 // intentional fall-thru (no break statement)
                 case NOBODY: {
                     if (leaseExpired && (!hasRelinquishedLeadership)) {
@@ -260,21 +274,22 @@ public class SQLLeaderElect {
                     
     private void checkRowValidity(RowInLeaderElectionTable row) throws LeaderElectorExceptionNonRecoverable {
         String prefix = "ERROR: Unexpected: Table " + tableNameDisplay + " with content " + row ;
-        if (row.getCurrentLeader() == CurrentLeader.ME && (!currentlyAmLeader)) {
+        if (row.getCurrentLeaderDbStatus()== CurrentLeaderDbStatus.ME && (!currentlyAmLeader)) {
             throw new LeaderElectorExceptionNonRecoverable(prefix
                     + ", says current candidate is leader but 'currentlyAmLeader' is false. "
                     + "Possibly table content was altered by an unsolicated process.");
         }
 
-        if (row.getCurrentLeader() != CurrentLeader.ME && (currentlyAmLeader)) {
+        if (row.getCurrentLeaderDbStatus() != CurrentLeaderDbStatus.ME && (currentlyAmLeader)) {
             throw new LeaderElectorExceptionNonRecoverable(prefix
-                    + ", says current candidate is leader, not me, but 'currentlyAmLeader' is true. "
-                    + "Possible cause if that current process has not kept its lease alive. Perhaps the process has been dormant? "
+                    + ", says current \"" + row.getCandidateId() + "\" is leader, not me, but 'currentlyAmLeader' is true. "
+                    + "In effect leadership was stolen. "        
+                    + "Possible cause is if current process has not kept its lease alive. Perhaps the process has been dormant? "
                     + "Another possible cause is if candidates do not use the same configuration values for their Leader Elector process "
                     + "(for example, they use different values for 'assumeDeadMs')"
             );
         }
-        if (row.getCurrentLeader() == CurrentLeader.NOBODY && row.getLastSeenTimestampMillis() != NO_LEADER_LASTSEENTIMESTAMP_MS) {
+        if (row.getCurrentLeaderDbStatus() == CurrentLeaderDbStatus.NOBODY && row.getLastSeenTimestampMillis() != NO_LEADER_LASTSEENTIMESTAMP_MS) {
             throw new LeaderElectorExceptionNonRecoverable(prefix
                     + ", is inconsistent. "
                     + "Possibly table content was altered by an unsolicated process.");
@@ -288,62 +303,4 @@ public class SQLLeaderElect {
         return e;
     }
     
-        
-    private static enum CurrentLeader {
-        SOMEONE_ELSE,
-        ME,
-        NOBODY
-    }
-    
-    private static class RowInLeaderElectionTable {
-
-        private final String candidateId;
-        private final long lastSeenTimestampMillis;
-        private final long nowUTCMillis;
-        private final long leaseCounter;
-        private final CurrentLeader currentLeader;
-        
-        public RowInLeaderElectionTable(ResultSet rs, String ownCandidateId) throws SQLException {
-            this.candidateId = rs.getString(1);                  // Column: CANDIDATE_ID
-            this.lastSeenTimestampMillis = rs.getLong(2);        // Column: LAST_SEEN_TIMESTAMP
-            this.nowUTCMillis = rs.getLong(3);                   // Column: <constructed DB time>
-            this.leaseCounter = rs.getLong(4);                   // Column: LEASE_COUNTER
-            this.currentLeader = calcCurrentLeader(ownCandidateId);
-        }
-
-        public String getCandidateId() {
-            return candidateId;
-        }
-
-        public long getLastSeenTimestampMillis() {
-            return lastSeenTimestampMillis;
-        }
-
-        public long getNowUTCMillis() {
-            return nowUTCMillis;
-        }
-
-        public long getLeaseCounter() {
-            return leaseCounter;
-        }
-
-        public CurrentLeader getCurrentLeader() {
-            return currentLeader;
-        }
-
-        private CurrentLeader calcCurrentLeader(String ownCandidateId) {
-            if (candidateId.equals(ownCandidateId)) {
-                return CurrentLeader.ME;
-            }
-            if (candidateId.equals(NO_LEADER_CANDIDATE_ID)) {
-                return CurrentLeader.NOBODY;
-            }
-            return CurrentLeader.SOMEONE_ELSE;
-        }
-        
-        @Override
-        public String toString() {
-            return "{" + "CANDIDATE_ID=" + candidateId + ", LAST_SEEN_TIMESTAMP=" + lastSeenTimestampMillis + ", LEASE_COUNTER=" + leaseCounter + '}';
-        }
-    }
 }

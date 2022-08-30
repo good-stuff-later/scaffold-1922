@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - include:
+      # DbLeaderElection setup
+      file: net/lbruun/dbleaderelect/liquibase/db.changelog_db_leader_elect.yaml
+      relativeToChangelogFile: false
+  - include:
+      # Application's database objects
+      file: db.changelog_app_schema_1.0.0.yaml
+      relativeToChangelogFile: true

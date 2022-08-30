@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.lbruun.dbleaderelect.internal.sqltexts;
+package net.lbruun.dbleaderelect.internal.sql;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -23,26 +23,32 @@ import net.lbruun.dbleaderelect.LeaderElectorConfiguration;
 /**
  *
  */
-public class SQLTextsPostgreSQL extends SQLTexts {
+public class SQLCmdsH2 extends SQLCmds {
     
     private static final String SQL_CURRENT_UTC_MS = 
             "CAST(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)*1000 AS bigint)";
 
-    public SQLTextsPostgreSQL(LeaderElectorConfiguration configuration) {
+    public SQLCmdsH2(LeaderElectorConfiguration configuration) {
         super(configuration);
     }
 
     public String currentUtcMsExpression() {
         return SQL_CURRENT_UTC_MS;
     }
-
+    
     @Override
-    public PreparedStatement getInsertRoleSQL(Connection connection, String roleId) throws SQLException {
-        String sql = "INSERT INTO " + getTabName() +  " " + getInsertColumnList()
-                   +  " VALUES " + getInsertValuesListWithDefaults()
-                   +  " ON CONFLICT DO NOTHING";
+    public PreparedStatement getInsertRoleStmt(Connection connection, String roleId) throws SQLException {
+        // WARNING:  H2 does not have a fully atomic construct for 
+        // 'insert-if-not-exist'. Instead we use MERGE which may fail
+        // under heavy concurrent load. But this is H2, hopefully nobody would
+        // run a production workload on it. So we accept this deviation
+        // from the formal requirement for this method.
+        String sql = "MERGE INTO " + getTabName() + " " + COLUMN_LIST_FOR_INSERT
+                + " KEY(role_id)"
+                + " VALUES " + VALUES_LIST_FOR_INSERT;
         PreparedStatement preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1, roleId);
         return preparedStatement;
     }
+
 }

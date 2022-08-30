@@ -22,5 +22,28 @@
             </plugin>
         </plugins>
     </build>
-
+    
+    <dependencies>
+        <!--  
+           In a real-life application this dependency would look
+           like this:
+             <dependency>
+               <groupId>net.lbruun.dbleaderelection</groupId>
+               <artifactId>library</artifactId>
+               <version> - latest version - </version>
+             </dependency>
+        -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>library</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
+        <!-- JDBC Driver -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.4.1</version>
+        </dependency>
+    </dependencies>
 </project>

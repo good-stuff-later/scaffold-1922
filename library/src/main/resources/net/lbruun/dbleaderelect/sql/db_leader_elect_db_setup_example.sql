@@ -31,4 +31,3 @@ CREATE TABLE db_leader_elect
 ALTER TABLE db_leader_elect
     ADD CONSTRAINT pk_db_leader_elect PRIMARY KEY (role_id);
 
-INSERT INTO db_leader_elect   VALUES ('DEFAULT', '//noleader//', 0, 0);

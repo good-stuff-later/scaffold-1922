@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Objects;
 import static net.lbruun.dbleaderelect.LeaderElector.NO_LEADER_LASTSEENTIMESTAMP;
-import net.lbruun.dbleaderelect.exception.LeaderElectorExceptionNonRecoverable;
 import net.lbruun.dbleaderelect.LeaderElectorListener;
 import static net.lbruun.dbleaderelect.LeaderElectorListener.EventType.LEADERSHIP_ASSUMED;
 import static net.lbruun.dbleaderelect.LeaderElectorListener.EventType.LEADERSHIP_CONFIRMED;

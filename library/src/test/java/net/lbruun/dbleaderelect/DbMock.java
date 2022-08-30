@@ -22,7 +22,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import javax.sql.DataSource;
 import net.lbruun.dbleaderelect.mocks.LeaderElectTableRow;
-import net.lbruun.dbleaderelect.internal.sqltexts.SQLTexts;
+import net.lbruun.dbleaderelect.internal.sql.SQLCmds;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
@@ -65,15 +65,15 @@ public class DbMock {
         return selectStatement;
     }
 
-    public static DbMock getMockDb(SQLTexts sqlTexts, LeaderElectTableRow[] rows) throws SQLException {
-        return getMockDb(sqlTexts, rows, null);
+    public static DbMock getMockDb(SQLCmds sqlCmds, LeaderElectTableRow[] rows) throws SQLException {
+        return getMockDb(sqlCmds, rows, null);
     }
-    public static DbMock getMockDb(SQLTexts sqlTexts, Throwable selectStatementError) throws SQLException {
-        return getMockDb(sqlTexts, null, selectStatementError);
+    public static DbMock getMockDb(SQLCmds sqlCmds, Throwable selectStatementError) throws SQLException {
+        return getMockDb(sqlCmds, null, selectStatementError);
     }
 
     
-    private static DbMock getMockDb(SQLTexts sqlTexts, LeaderElectTableRow[] rows, Throwable selectStatementError) throws SQLException {
+    private static DbMock getMockDb(SQLCmds sqlCmds, LeaderElectTableRow[] rows, Throwable selectStatementError) throws SQLException {
 
         Connection connection = Mockito.mock(Connection.class);
 
@@ -85,24 +85,24 @@ public class DbMock {
             ResultSet resultSet = getResultSet(rows);
             Mockito.when(selectStatement.executeQuery()).thenReturn(resultSet);
         }
-        Mockito.when(connection.prepareStatement(sqlTexts.getSelectSQL())).thenReturn(selectStatement);
+        Mockito.when(connection.prepareStatement(sqlCmds.getSelectSQL())).thenReturn(selectStatement);
 
         
         // affirmLeadershipStatement
         PreparedStatement affirmLeadershipStatement = Mockito.mock(PreparedStatement.class);
 //        Mockito.when(affirmLeadershipStatement.executeUpdate()).thenReturn(1);
-        Mockito.when(connection.prepareStatement(sqlTexts.getAffirmLeadershipSQL())).thenReturn(affirmLeadershipStatement);
+        Mockito.when(connection.prepareStatement(sqlCmds.getAffirmLeadershipSQL())).thenReturn(affirmLeadershipStatement);
         
 
         // assumeLeadershipStatement
         PreparedStatement assumeLeadershipStatement = Mockito.mock(PreparedStatement.class);
 //        Mockito.when(assumeLeadershipStatement.executeUpdate()).thenReturn(1);
-        Mockito.when(connection.prepareStatement(sqlTexts.getAssumeLeadershipSQL())).thenReturn(assumeLeadershipStatement);
+        Mockito.when(connection.prepareStatement(sqlCmds.getAssumeLeadershipSQL())).thenReturn(assumeLeadershipStatement);
 
         // assumeLeadershipStatement
         PreparedStatement relinquishLeadershipStatement = Mockito.mock(PreparedStatement.class);
 //        Mockito.when(relinquishLeadershipStatement.executeUpdate()).thenReturn(1);
-        Mockito.when(connection.prepareStatement(sqlTexts.getRelinquishLeadershipSQL())).thenReturn(relinquishLeadershipStatement);
+        Mockito.when(connection.prepareStatement(sqlCmds.getRelinquishLeadershipSQL())).thenReturn(relinquishLeadershipStatement);
         
         return new DbMock(connection, selectStatement, affirmLeadershipStatement, assumeLeadershipStatement, relinquishLeadershipStatement);
     }

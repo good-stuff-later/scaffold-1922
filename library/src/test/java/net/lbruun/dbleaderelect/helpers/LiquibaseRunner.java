@@ -37,12 +37,21 @@ public class LiquibaseRunner {
     private final DataSource dataSource;
     private Database database;
     private final String leaderElectTableName;
+    private final String leaderElectSchemaName;
             
 
-    public LiquibaseRunner(String changeLogClasspathLocation, DataSource dataSource, String tableName) {
+    public LiquibaseRunner(String changeLogClasspathLocation, DataSource dataSource, String tableName, String schemaName) {
         this.changeLogClasspathLocation = changeLogClasspathLocation;
         this.dataSource = dataSource;
         this.leaderElectTableName = tableName;
+        this.leaderElectSchemaName = schemaName;
+    }
+    public LiquibaseRunner(String changeLogClasspathLocation, DataSource dataSource, String tableName) {
+        this(changeLogClasspathLocation, dataSource, tableName, null);
+    }
+    
+    public LiquibaseRunner(DataSource dataSource, String tableName, String schemaName) {
+        this(LIQUIBASE_CHGLOG_DEFAULT_LOCATION, dataSource, tableName, schemaName);
     }
     
     public LiquibaseRunner(DataSource dataSource, String tableName) {
@@ -64,9 +73,10 @@ public class LiquibaseRunner {
             database = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection));
             database.setDatabaseChangeLogLockTableName(getTmpTableName());
             database.setDatabaseChangeLogTableName(getTmpTableName());
+            String connectionSchema = connection.getSchema();
             Liquibase liquibase = new liquibase.Liquibase(changeLogClasspathLocation, new ClassLoaderResourceAccessor(), database);
             liquibase.setChangeLogParameter("dbleaderelect.tablename", leaderElectTableName);
-            liquibase.setChangeLogParameter("dbleaderelect.schemaname", connection.getSchema());
+            liquibase.setChangeLogParameter("dbleaderelect.schemaname", (connectionSchema == null) ? "" : connectionSchema);
             liquibase.update((Contexts) null);
         } catch (SQLException | LiquibaseException ex) {
             throw new RuntimeException(ex);
@@ -82,9 +92,9 @@ public class LiquibaseRunner {
         String databaseChangeLogTableName = database.getDatabaseChangeLogTableName();
         String liquibaseSchemaName = database.getLiquibaseSchemaName();
         try ( Connection connection = dataSource.getConnection()) {
-            SQLUtils.dropTable(connection, liquibaseSchemaName, databaseChangeLogLockTableName);
-            SQLUtils.dropTable(connection, liquibaseSchemaName, databaseChangeLogTableName);
-            SQLUtils.dropTable(connection, null, leaderElectTableName);
+            SQLUtilsTestHelper.dropTable(connection, liquibaseSchemaName, databaseChangeLogLockTableName);
+            SQLUtilsTestHelper.dropTable(connection, liquibaseSchemaName, databaseChangeLogTableName);
+            SQLUtilsTestHelper.dropTable(connection, null, leaderElectTableName);
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         }

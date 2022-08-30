@@ -16,16 +16,14 @@
 package net.lbruun.dbleaderelect.helpers;
 
 import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Objects;
 import javax.sql.DataSource;
+import net.lbruun.dbleaderelect.internal.utils.SQLUtils;
 
-public class SQLUtils {
+public class SQLUtilsTestHelper {
 
-    private SQLUtils() {
+    private SQLUtilsTestHelper() {
     }
     
     public static void dropTable(DataSource dataSource, String schemaName, String tableName) throws SQLException {
@@ -36,7 +34,7 @@ public class SQLUtils {
     
     public static void dropTable(Connection connection, String schemaName, String tableName) throws SQLException {
         try ( Statement statement = connection.createStatement()) {
-            if (tableExists(connection, schemaName, tableName)) {
+            if (SQLUtils.tableExists(connection, schemaName, tableName)) {
                 String schemaPrefix = (schemaName != null) ? (schemaName + ".") : "";
                 System.out.println("Dropping table " + schemaPrefix + tableName);
                 statement.execute("DROP TABLE " + schemaPrefix + tableName);
@@ -44,18 +42,18 @@ public class SQLUtils {
         }
     }
     
-    
-    public static boolean tableExists(DataSource dataSource, String schemaName, String tableName) throws SQLException {
-        try (Connection connection = dataSource.getConnection()) {
-            return tableExists(connection, schemaName, tableName);
-        }
-    }
-    
-    public static boolean tableExists(Connection connection, String schemaName, String tableName) throws SQLException {
-        DatabaseMetaData meta = connection.getMetaData();
-        try ( ResultSet resultSet = meta.getTables(null, schemaName, tableName, new String[]{"TABLE"})) {
-            return resultSet.next();
-        }
-    }
-    
+//    
+//    public static boolean tableExists(DataSource dataSource, String schemaName, String tableName) throws SQLException {
+//        try (Connection connection = dataSource.getConnection()) {
+//            return tableExists(connection, schemaName, tableName);
+//        }
+//    }
+//    
+//    public static boolean tableExists(Connection connection, String schemaName, String tableName) throws SQLException {
+//        DatabaseMetaData meta = connection.getMetaData();
+//        try ( ResultSet resultSet = meta.getTables(null, schemaName, tableName, new String[]{"TABLE"})) {
+//            return resultSet.next();
+//        }
+//    }
+//    
 }

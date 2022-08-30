@@ -82,6 +82,14 @@ public class SQLUtils {
         }
     }
     
+    /**
+     * Verifies if expected columns exist on the table. Throws {@code SQLException} is not.
+     * @param connection
+     * @param schemaName name of schema, may be null for the default schema for the connection
+     * @param tableName name of table
+     * @param expectedColumns
+     * @throws SQLException 
+     */
     public static void tableColumnVerification(Connection connection, String schemaName, String tableName, TableColumn[] expectedColumns) throws SQLException {
         Objects.requireNonNull(connection, "connection cannot be null");
         Objects.requireNonNull(tableName, "tableName cannot be null");

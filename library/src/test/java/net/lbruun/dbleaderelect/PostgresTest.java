@@ -19,6 +19,7 @@ import net.lbruun.dbleaderelect.helpers.LiquibaseRunner;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -158,6 +159,7 @@ public class PostgresTest {
             try ( Connection connection = dataSource.getConnection()) {
                 boolean originalAutoCommit = connection.getAutoCommit();
                 connection.setAutoCommit(false);
+                PreparedStatement stmt = connection.prepareStatement(" ffffff");
                 for (int i = 0; i < iterations; i++) {
                     System.out.println("Thread-" + threadNo + " . Execution no: " + (i+1));
                     runSelectForUpdate(connection, tableName, lock);

@@ -16,6 +16,7 @@
 package net.lbruun.dbleaderelect;
 
 import java.time.Instant;
+import java.util.EnumSet;
 import net.lbruun.dbleaderelect.exception.LeaderElectorException;
 import net.lbruun.dbleaderelect.exception.LeaderElectorExceptionNonRecoverable;
 
@@ -25,6 +26,7 @@ import net.lbruun.dbleaderelect.exception.LeaderElectorExceptionNonRecoverable;
 public interface LeaderElectorListener {
     
     
+    public static final EnumSet<EventType> ALL_EVENT_TYPES = EnumSet.allOf(EventType.class);
     /**
      * Event type.
     **/ 
@@ -124,7 +126,11 @@ public interface LeaderElectorListener {
      * }
      * </pre>
      * 
-     * If the
+     * The method must execute swiftly as it blocks the thread where
+     * notifications from the leader election process happens. It recommended to
+     * offload any heavier processing to another thread so that this method
+     * returns quickly.
+     *
      * @param event
      */
     public void onLeaderElectionEvent(Event event);

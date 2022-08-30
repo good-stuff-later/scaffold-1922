@@ -18,6 +18,7 @@ package net.lbruun.dbleaderelect;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
+import java.util.Locale;
 
 /**
  * Type of database.
@@ -52,8 +53,12 @@ public enum DatabaseEngine {
     /**
      * H2 Database Engine
      */
-    H2;
+    H2,
     
+    /**
+     * IBM Db2 for Linux, Unix and Windows
+     */
+    DB2_LUW;
     
     /**
      * Determines the database engine type from a database connection.
@@ -64,9 +69,11 @@ public enum DatabaseEngine {
      */
     public static DatabaseEngine getDatabaseEngineFromConnection(Connection connection) throws SQLException {
         DatabaseMetaData metaData = connection.getMetaData();
-        
+
         String databaseProductName = metaData.getDatabaseProductName();
-        
+        String databaseProductNameLower = databaseProductName.toLowerCase(Locale.US);
+        String databaseProductVersion = metaData.getDatabaseProductVersion();
+
         // Be careful about the order below. Use most specific first.
         if (databaseProductName.startsWith("Microsoft SQL Server")) {
             return MSSQL;
@@ -80,6 +87,14 @@ public enum DatabaseEngine {
             return ORACLE;
         } else if (databaseProductName.startsWith("H2")) {
             return H2;
+        } else if (databaseProductNameLower.equals("db2")
+                || databaseProductNameLower.matches("db2[.-/ ].*")) {
+            if (databaseProductVersion != null && databaseProductVersion.length() > 3) {
+                String ppp = databaseProductVersion.substring(0, 3);
+                if (ppp.equals("SQL")) {
+                    return DB2_LUW;  // Db2 on Linux, UNIX, and Windows systems
+                }
+            }
         }
         throw new SQLException("Unknown database engine: " + databaseProductName);
     }

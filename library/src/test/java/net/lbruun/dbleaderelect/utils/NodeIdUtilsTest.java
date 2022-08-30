@@ -15,7 +15,6 @@
  */
 package net.lbruun.dbleaderelect.utils;
 
-import net.lbruun.dbleaderelect.utils.NodeIdUtils;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 

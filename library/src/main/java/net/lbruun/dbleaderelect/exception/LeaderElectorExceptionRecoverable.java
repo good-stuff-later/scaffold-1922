@@ -16,7 +16,8 @@
 package net.lbruun.dbleaderelect.exception;
 
 /**
- * An unexpected condition was encountered, but nothing too serious.
+ * An unexpected condition was encountered, but it is expected that
+ * the error is of a transient nature. 
  */
 public class LeaderElectorExceptionRecoverable extends LeaderElectorException {
 

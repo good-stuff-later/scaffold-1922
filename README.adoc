@@ -17,9 +17,9 @@ image:https://github.com/lbruun/dbleaderelection/actions/workflows/main.yml/badg
 image:https://maven-badges.herokuapp.com/maven-central/net.lbruun.springboot/preliquibase-spring-boot-starter/badge.svg[link="https://maven-badges.herokuapp.com/maven-central/net.lbruun.springboot/preliquibase-spring-boot-starter"]
 image:https://javadoc.io/badge2/net.lbruun.springboot/preliquibase-spring-boot-autoconfigure/javadoc.svg[javadoc,link="https://javadoc.io/doc/net.lbruun.springboot/preliquibase-spring-boot-autoconfigure"]
 
-Database-driven leader election
+*Database-driven leader election.*
 
-Elect leader among distributed nodes using a common database.
+Elect leader among distributed nodes using a common database as the mediator.
 
 There are quite a few solutions available for leader election with different characteristics. 
 However, they typically require separate infrastructure. If your application is already using 
@@ -33,14 +33,17 @@ toc::[]
 
 ## Features
 
-
-- Easy to reason about. Means we can express with great certainty what it will be good at
+- No permanent JDBC session. This means it works transparently with a `DataSource` 
+  from a JDBC Connection Pool implementation.
+- Easy to reason about. Means we can express with great certainty the what it will be good at
   and what it will be less good at.
 - Simple to use. Examples exists for use with Spring Boot or plain vanilla Java SE.
 - Works with standard databases.
 - Well tested. (we use TestContainers to simulate real-life)
 - Supports fencing token when protection against dual leadership is important.
 - Well documented.
+- Easy on the database. The lease-based approach means that nodes only periodically need to 
+contact the database.
 
 
 
@@ -49,25 +52,35 @@ toc::[]
 == Why is leader election hard?
 
 Leader election is difficult because any coordinated effort in a distributed environment is difficult.
-There may be network partitions, unexpected delays and all sorts of other problems. In practice it is 
-impossible to fully guarantee the outcome of such a process.
+Formally leader election is the process of reaching consencus among candidates. In a distributed
+environment this is hard because there may be network partitions, unexpected delays and all sorts of other problems. 
+In practice it is impossible to fully guarantee the outcome of such a process.
 
-DbLeaderElection takes a well-proven approach by using the locking mechanism of a database to do the
-hard work for us. Databases like PostgreSQL, MySQL and others have battle-tested functionality for locking.
-Rather than inventing our own, we use database's locking feature. Indeed we use the `SELECT .. FOR UPDATE`
-statement which exists in just about any ANSI SQL compliant database. 
 
-Also, DbLeaderElect uses a lease-based locking mechanism. The holder of the lease is the leader.
+Before adding any form of leader election to your application you should evaluate carefully
+what the given leader election mechanism 
+The following is how DbLeaderElection tackles some of these challenges:
+
+- *Central lock*. Creating a distributed locking mechanism that actually works as advertised is not for the
+faint of heart. DbLeaderElection takes a well-proven approach by using the locking mechanism of a database to do the
+hard work for us. Databases like PostgreSQL, MySQL and others have battle-tested functionality for 
+exclusive row-level locking. This is what we use.
+
+- *Lease-based*. DbLeaderElect uses a lease-based election mechanism. The holder of the lease is the leader.
 However, the lease holder must periodically renew his lease to avoid other candidates from grabbing
 the lease. If a lease hasn't been timely renewed then it is up for grabs. Eventually another
 candidate will acquire the lease and thereby become leader. Unlike other leader election algorithms
-the lease-based approach is easy to understand and easy to verify.
+the lease-based approach is easy to understand and easy to verify. 
 
-Thirdly, agreeing on someting in a distributed environment often means that first the nodes
-must agree on what time it is. Without clocks being syncronized it will often be impossible to
-agree on anything, or even worse: the algorithm may apoint more than one leader concurrently. 
-DbLeaderElect avoids clock synchronization issues by solely using the time of the central database. 
-It is irrelevant if the clock of the individual nodes are off.
+- *Time concensus*. Agreeing on someting in a distributed environment often means that first the nodes
+must agree on what time it is. Without clocks being syncronized it will often be impossible to safely
+elect a leader, or even worse: the algorithm may apoint more than one leader concurrently. 
+DbLeaderElect avoids clock synchronization issues by solely using the clock of the database. 
+In fact we don't even care if the time on the database if incorrect, as long as it can 
+correctly measure a _duaration_ using its clock. Using this approach the clock of the individual
+nodes have no relevance. They simply don't play any role.
+
+
 
 All in all DbLeaderElect provides guarantee that no two leaders will be _appointed_ at the same time.
 The central mechanism will be consistent. However, we may still - at least theoretically - 
@@ -85,9 +98,11 @@ feature: fencing token.
 DbLeaderElect provides pretty good defence against there being multiple leaders, especially if you 
 are able to take advantage of the fencing token. On the other hand - like any lease-based strategy - 
 it isn't very good at ensuring that there is always a leader. You will have to accept that there
-may be gaps where there is no leader at all. Even long gaps, up until the interval by which the
-database is contacted. If this is 30 seconds then theoretically there can at worst case 
-be no leader for 29.9 seconds even when there are suitable candidates.
+may be gaps where there is no leader at all. Even long gaps, up until the `assumeDeadMs` configuration
+value. If this is 40 seconds then theoretically there can at worst case be no leader for 39.9 seconds 
+depending on the time distribution for which candidates contact the database. (DbLeaderElection
+tries to spread this a bit, so that even if candidates (nodes) are all started at the same time they will
+not all contact the database at the exact same points in time).
 
 Unlike other solutions which also use a database for central lock mechanism, DbLeaderElect does not
 require each node to have a constant connection to the database. This makes DbLeaderElect 
@@ -102,6 +117,62 @@ be catastrophic if was done twice, then use of a fencing token is highly recomme
 not mandatory. In most cases however, it would be better to ensure the tasks that the leader is doing are idempotent, 
 meaning such tasks can be done twice without adverse effects. Then you would be using leader
 election "for efficiency" and that is a much better situation to be in.
+
+
+## Requirements
+
+
+
+## Table
+
+
+
+[source,sql]
+----
+CREATE TABLE db_leader_elect 
+ (
+     role_id               varchar(20)    NOT NULL,
+     candidate_id          varchar(256)   NOT NULL,
+     last_seen_timestamp   bigint         NOT NULL,
+     lease_counter         bigint         NOT NULL,
+ 
+     PRIMARY KEY (role_id)
+  );
+----
+
+Table will never have more than a few rows so you need not be concerned about storage.
+
+## Database support
+
+Currently supported databases are:
+
+- PostgreSQL (version 10 or later)
+- MySQL (version 5.6 or later)
+- Oracle (version 11 or later)
+- Microsoft SQL Server (version 2016 or later)
+- IBM Db2 for Linux, Unix and Windows (version 10.5 FP7 or later)
+- H2 (only for testing, proof-of-concept, etc)
+
+
+
+
+### Database support requirements
+
+It will be possible to add support for most databases as the requirements that DbLeaderElection has
+are really quite modest:
+
+- Must support exclusive row-level locking, which means `SELECT .. FOR UPDATE` or something equivalent. 
+  We use a simple brute-force test with 40 concurrent threads for a number of minutes to test if the database's implementation
+  of this construct truly holds an exclusive row-level lock as we expect.
+- Must support an expression which returns number of milliseconds since Unix epoch as a `BIGINT` type. 
+  For example for PostgreSQL the expression is `CAST(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP(3))*1000 AS BIGINT)`.
+- Must support an atomic insert-if-not-exist statement. This is not part of ANSI SQL so will be
+  proprietary to each database. For example PostgreSQL has `ON CONFLICT DO NOTHING` addition to INSERT statements,
+  and MySQL has `INSERT IGNORE` statement. Note that constructs using `MERGE` or `NOT EXIST` are never
+  safe to use under concurrent load. For databases which does not have out-of-the-box support it is
+  acceptable to use a standard INSERT with try-catch and then ignore any duplicate key error (for example
+  this is necessary for MS SQL Server)
+- Must be supported by https://www.testcontainers.org/[Testcontainers project].
 
 
 ## Litterature

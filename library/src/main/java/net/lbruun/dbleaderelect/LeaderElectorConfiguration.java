@@ -30,7 +30,7 @@ import net.lbruun.dbleaderelect.utils.NodeIdUtils;
  * Use {@link #builder()} to create an instance of this class.
  * 
  * <p>
- * All candidates contending for leadership for the same role must use
+ * IMPORTANT: All candidates contending for leadership for the same role <i>must</i> use
  * the same configuration values, except for the value of {@code candidateId}.
  */
 public class LeaderElectorConfiguration {
@@ -70,16 +70,12 @@ public class LeaderElectorConfiguration {
      * Default value for {@code intervalMs}
      */
     public static final long DEFAULT_INTERVAL_MS = 20 * 1000L;
-    
+
     /**
-     * Default value for {@code assumeDeadMs}.
+     * Default value for {@code createTable}
      */
-    public static final long DEFAULT_ASSUME_DEAD_MS = 2 * DEFAULT_INTERVAL_MS;
+    public static final boolean DEFAULT_CREATE_TABLE = false;
     
-    /**
-     * Default value for {@code queryTimeoutSecs}.
-     */
-    public static final int DEFAULT_QUERY_TIMEOUT_SECS = 120;
     
     /**
      * Default value for {@code listenerSubscription}. 
@@ -94,7 +90,23 @@ public class LeaderElectorConfiguration {
                     LeaderElectorListener.EventType.LEADERSHIP_CONFIRMED,
                     LeaderElectorListener.EventType.LEADERSHIP_NOOP
             ));
+
+
+
+    /**
+     * Event types which <i>must</i> be part of a subscription.
+     * This is:
+     * <ul>
+     *   <li>{@link LeaderElectorListener.EventType#LEADERSHIP_ASSUMED LEADERSHIP_ASSUMED}</li>
+     *   <li>{@link LeaderElectorListener.EventType#LEADERSHIP_LOST LEADERSHIP_LOST}</li>
+     * </ul>
+     */
+    public static final EnumSet<LeaderElectorListener.EventType> MANDATORY_SUBSCRIPTIONS = 
+            EnumSet.of(
+                    LeaderElectorListener.EventType.LEADERSHIP_ASSUMED,
+                    LeaderElectorListener.EventType.LEADERSHIP_LOST);
     
+
     /**
      * Configuration with all values set to their default value and a listener
      * which outputs to {@code stdout}. Mainly useful when testing.
@@ -112,6 +124,7 @@ public class LeaderElectorConfiguration {
     private final LeaderElectorListener listener;
     private final EnumSet<LeaderElectorListener.EventType> listenerSubscription;
     private final int queryTimeoutSecs;
+    private final boolean createTable;
 
     private LeaderElectorConfiguration(
             String roleId,
@@ -124,7 +137,8 @@ public class LeaderElectorConfiguration {
             long assumeDeadMs,
             LeaderElectorListener listener,
             EnumSet<LeaderElectorListener.EventType> listenerSubscription,
-            int queryTimeoutSecs
+            int queryTimeoutSecs,
+            boolean createTable
     ) {
         this.roleId = roleId;
         this.candidateId = candidateId;
@@ -137,6 +151,7 @@ public class LeaderElectorConfiguration {
         this.listener = listener;
         this.listenerSubscription  = listenerSubscription;
         this.queryTimeoutSecs = queryTimeoutSecs;
+        this.createTable = createTable;
     }
 
     public String getRoleId() {
@@ -183,10 +198,28 @@ public class LeaderElectorConfiguration {
         return queryTimeoutSecs;
     }
 
+    public boolean getCreateTable() {
+        return createTable;
+    }
+
     @Override
     public String toString() {
         String dbE = (databaseEngine == null) ? "<auto-detect>" : databaseEngine.toString();
-        return this.getClass().getSimpleName() + "{" + "roleId=" + roleId + ", candidateId=" + candidateId + ", databaseEngine=" + dbE + ", schemaName=" + schemaName + ", tableName=" + tableName + ", intervalMs=" + intervalMs + ", assumeDeadMs=" + assumeDeadMs + ", queryTimeoutSecs=" + queryTimeoutSecs + '}';
+        return this.getClass().getSimpleName() 
+                + "{" 
+                + "roleId=" + roleId 
+                + ", candidateId=" + candidateId 
+                + ", databaseEngine=" + dbE 
+                + ", schemaName=" + schemaName 
+                + ", tableName=" + tableName 
+                + ", intervalMs=" + intervalMs 
+                + ", assumeDeadMs=" + assumeDeadMs 
+                + ", queryTimeoutSecs=" + queryTimeoutSecs 
+                + ", createTable=" + createTable
+                + ", listener=" + listener.getClass().getSimpleName()
+                + ", listenerSubscription=" + listenerSubscription.toString()
+                + ", leaderElectorLogger=" + leaderElectorLogger.getClass().getSimpleName()
+                + '}';
     }
     
     
@@ -194,6 +227,11 @@ public class LeaderElectorConfiguration {
      * Gets a new configuration based on an existing one but with with values
      * which should be auto-detected set to their actual value based on what can
      * be obtained from the provided {@code DataSource}.
+     * 
+     * <p>
+     * Note: There is rarely any reason to explicitly call this method. It is
+     * used by the library in the constructor for {@link LeaderElector}. It is 
+     * mainly exposed for testing purpose.
      *
      * @param configuration existing configuration object
      * @param dataSource from where to auto-detect
@@ -256,20 +294,25 @@ public class LeaderElectorConfiguration {
      * 
      * <p>
      * The builder provides reasonable defaults for most values.
+     * When tuning the time-related values it is recommended only
+     * to set the {@link Builder#withIntervalMs(long) intervalMs}
+     * value explicitly. Other time-related values will be then be derived
+     * from this with reasonable values.
      */
     public static class Builder {
 
-        private String roleId = DEFAULT_ROLEID;
-        private String candidateId = DEFAULT_CANDIDATEID;
-        private LeaderElectorLogger leaderElectorLogger = DEFAULT_LOGGER;
-        private DatabaseEngine databaseEngine = null;
-        private String schemaName = null;
-        private String tableName = DEFAULT_TABLENAME;
-        private long intervalMs = DEFAULT_INTERVAL_MS;
-        private long assumeDeadMs = DEFAULT_ASSUME_DEAD_MS;
-        private LeaderElectorListener listener = new LeaderElectorListener.NoOpListener();
-        private EnumSet<LeaderElectorListener.EventType> listenerSubscription  = DEFAULT_SUBSCRIPTION;
-        private int queryTimeoutSecs = DEFAULT_QUERY_TIMEOUT_SECS;
+        private String roleId;
+        private String candidateId;
+        private LeaderElectorLogger leaderElectorLogger;
+        private DatabaseEngine databaseEngine;
+        private String schemaName;
+        private String tableName;
+        private Long intervalMs;
+        private Long assumeDeadMs;
+        private LeaderElectorListener listener;
+        private EnumSet<LeaderElectorListener.EventType> listenerSubscription;
+        private Integer queryTimeoutSecs;
+        private Boolean createTable;
 
         private Builder() {
         }
@@ -285,6 +328,7 @@ public class LeaderElectorConfiguration {
             withQueryTimeoutSecs(configuration.getQueryTimeoutSecs());
             withSchemaName(configuration.getSchemaName());
             withTableName(configuration.getTableName());
+            withCreateTable(configuration.getCreateTable());
         }
 
         /**
@@ -297,8 +341,11 @@ public class LeaderElectorConfiguration {
          * </ul>
          *
          * <p>
-         * The value must be no longer than {@link #ROLEID_MAX_LENGTH ROLEID_MAX_LENGTH}. 
-         * 
+         * The value must be no longer than
+         * {@link #ROLEID_MAX_LENGTH ROLEID_MAX_LENGTH}. Most applications only
+         * need a single leader role to compete for and therefore do not need to
+         * set this value.
+           * 
          * <p>
          * Defaults to {@link #DEFAULT_ROLEID} if not set.
          * 
@@ -321,7 +368,7 @@ public class LeaderElectorConfiguration {
         
 
         /**
-         * Defines an id for the current candidate. The velue must be unique
+         * Defines an id for the current candidate. The value must be unique
          * between all candidates participating in a leader election for the same
          * role.
          * 
@@ -354,12 +401,21 @@ public class LeaderElectorConfiguration {
 
         /**
          * Defines a logger implementation to use for messages from the
-         * Leader Elector.
+         * Leader Elector. This includes informational messages during startup
+         * and shutdown as well as error messages from the event propagation
+         * mechanism. As such, this logger is not the way to be alerted to
+         * errors from the core of the leader election process; 
+         * {@link LeaderElectorListener.Event#hasErrors() events} are used
+         * for this.
          * 
          * <p>
          * Defaults to {@link #DEFAULT_LOGGER DEFAULT_LOGGER} if not set. 
          * Set this value to {@link LeaderElectorLogger#NULL_LOGGER NULL_LOGGER} if 
-         * such messages should be suppressed entirely.
+         * such messages should be suppressed entirely. This can be justified
+         * if there is no need for informational startup/shutdown messages
+         * and if you are confident that your {@link LeaderElectorListener#onLeaderElectionEvent(net.lbruun.dbleaderelect.LeaderElectorListener.Event)
+         * LeaderElectorListener#onLeaderElectionEvent()} implementation never 
+         * throws exceptions.
          * 
          * @param leaderElectorLogger logger implementation
          * @return 
@@ -397,6 +453,11 @@ public class LeaderElectorConfiguration {
          * Defaults to {@code null} if not set. The {@code null} value
          * means to use the default schema of the database session.
          * 
+         * <p>
+         * WARNING: For MySQL/MariaDB the concept of "schema" is effectively
+         * synonymous with a database. Therefore, if this setting is used with
+         * MySQL/MariaDB it means in which <i>database</i> the table is located.
+         *
          * @see #withTableName(java.lang.String) 
          * @throws LeaderElectorConfigurationException if argument 
          *    contains a dot character ('.').
@@ -442,21 +503,27 @@ public class LeaderElectorConfiguration {
 
         /**
          * Defines the number of milliseconds after which the Leader Elector
-         * will decide that a candidate is dead if it hasn't renewed its lease within
+         * will decide that a leader is dead if it hasn't renewed its lease within
          * this time. Therefore, if a lease is older than {@code assumeDeadMs}
-         * then the Leader Elector will assume the candidate it dead - as the candidate hasn't
+         * then the Leader Elector will assume the leader it dead - as the candidate hasn't
          * properly renewed its own lease - and the lease is now up for grabs by
          * another candidate. Meaning another candidate may now assume leader role.
          * 
          * <p>
-         * The value must be larger than {@link #withIntervalMs(long) intervalMs}. 
-         * It is suggested to use a value 2x {@code intervalMs}.
-         * 
+         * If set, the value must be at least 3 seconds larger than
+         * {@link #withIntervalMs(long) intervalMs}. It is suggested to use a
+         * value 2x {@code intervalMs}. The difference between
+         * {@code assumeDeadMs} and {@code intervalMs} is the allowance for how
+         * late in renewing its lease a leader can be without being dethroned.
+         * The difference must allow for network latencies, garbage collection,
+         * temporary CPU starvation or any reason which will cause the renewal
+         * process to be late.
+         *
          * <p>
-         * Defaults to {@link LeaderElectorConfiguration#DEFAULT_ASSUME_DEAD_MS DEFAULT_ASSUME_DEAD_MS}
-         * if not set.
+         * If not set: Defaults to 2x {@code intervalMs}, however at least 3 seconds.
+         * ({@code MAX(intervalMs+3000, intervalMs*2)})
          * 
-         * @param assumeDeadMs milliseconds value after which time a candidate will
+         * @param assumeDeadMs milliseconds value after which time a leader will
          *        be considered dead if it hasn't renewed its lease.
          * @throws LeaderElectorConfigurationException if input is &lt;= 0 (zero).
          */
@@ -473,14 +540,16 @@ public class LeaderElectorConfiguration {
          * {@code intervalMs} a background thread in the Leader Elector
          * will go to the database and either renew its current lease (if
          * the candidate is currently the leader) or check if other leader has
-         * died and a new one should be promoted.
+         * died and a new one should be promoted. The value is the
+         * interval <i>between</i> the checks (not including the the check 
+         * itself).
          * 
          * <p>
-         * The lower this value is the smaller the amount if time which 
-         * may pass without a leader. 
-         * 
-         * <p>
-         * The value must be &lt; {@link #withAssumeDeadMs(long) assumeDeadMs}.
+         * The lower this value is the smaller the amount of time which 
+         * may pass without a leader. If leadership gaps are generally
+         * undesirable then the value should be lowered. However, the lower
+         * the value the more strain on the database, especially with many
+         * candidates.
          * 
          * <p>
          * Defaults to {@link LeaderElectorConfiguration#DEFAULT_INTERVAL_MS DEFAULT_INTERVAL_MS}
@@ -520,17 +589,28 @@ public class LeaderElectorConfiguration {
          * will receive.
          *
          * <p>
-         * Defaults to {@link LeaderElectorConfiguration#DEFAULT_SUBSCRIPTION DEFAULT_SUBSCRIPTION} 
-         * if not set. A value of {@code EnumSet.allOf(LeaderElectorListener.EventType.class)}
-         * can be used to receive any type of event which may be useful for
-         * debugging purpose.
+         * Defaults to
+         * {@link LeaderElectorConfiguration#DEFAULT_SUBSCRIPTION DEFAULT_SUBSCRIPTION}
+         * if not set. A value of
+         * {@link LeaderElectorListener#ALL_EVENT_TYPES ALL_EVENT_TYPES} can be
+         * used to receive any type of event. This may be useful for debugging
+         * purpose.
+         *
+         * <p>
+         * The set must as a minimum include the types listed in
+         * {@link MANDATORY_SUBSCRIPTIONS MANDATORY_SUBSCRIPTIONS}.
          *
          * @throws LeaderElectorConfigurationException if input is {@code null}
+         *    or if input does not contain all of the event types listed
+         *    in {@link MANDATORY_SUBSCRIPTIONS MANDATORY_SUBSCRIPTIONS}.
          * @param eventSubscription subscription
          */
         public final Builder withListenerSubscription(EnumSet<LeaderElectorListener.EventType> eventSubscription) {
             if (eventSubscription == null) {
                 throw new LeaderElectorConfigurationException("eventSubscription cannot be null");
+            }
+            if (!eventSubscription.containsAll(MANDATORY_SUBSCRIPTIONS)) {
+                throw new LeaderElectorConfigurationException("eventSubscription must contain the mandatory types : " + MANDATORY_SUBSCRIPTIONS);
             }
             this.listenerSubscription = eventSubscription;
             return this;
@@ -550,8 +630,8 @@ public class LeaderElectorConfiguration {
          * with a non-null {@link LeaderElectorListener.Event}.
          * 
          * <p>
-         * Defaults to {@link LeaderElectorConfiguration#DEFAULT_QUERY_TIMEOUT_SECS DEFAULT_QUERY_TIMEOUT_SECS} 
-         * if not set. 
+         * If not set, defaults to half of seconds of {@code intervalMs},
+         * however no more than 5 seconds. ({@code MIN(5, (intervalMs*1000)/2)})
          * 
          * @throws LeaderElectorConfigurationException if input is less than zero.
          * @param queryTimeoutSecs
@@ -565,6 +645,37 @@ public class LeaderElectorConfiguration {
             return this;
         }
 
+
+        /**
+         * If the leader election table should be created if it does not
+         * already exist?. If {@code true}, then at every instantiation
+         * of {@link LeaderElector} class a check will be made to see if the
+         * table already exists. If not, it will be created.
+         * 
+         * <p>
+         * The table will be created like this (generic form):
+         * <pre>
+         * CREATE TABLE [&lt;configuration.schemaName&gt;.]&lt;configuration.tableName&gt;
+         *  (
+         *     role_id               VARCHAR(20)    NOT NULL,
+         *     candidate_id          VARCHAR(256)   NOT NULL,
+         *     last_seen_timestamp   BIGINT         NOT NULL,
+         *     lease_counter         BIGINT         NOT NULL,
+         *     PRIMARY KEY(role_id)
+         *  )
+         * </pre>
+         * (with column types replaced as appropriate for the given database 
+         * engine)
+         * 
+         * <p>
+         * If not set, defaults to {@code false}.
+         * 
+         */
+        public final Builder withCreateTable(boolean createTable) {
+            this.createTable = createTable;
+            return this;
+        }
+
         /**
          * Creates a new configuration.
          * 
@@ -572,10 +683,47 @@ public class LeaderElectorConfiguration {
          *         configuration are inconsistent.
          * @return configuration
          */
-        public LeaderElectorConfiguration build() {
-            if (intervalMs >= assumeDeadMs) {
-                throw new LeaderElectorConfigurationException("intervalMs must be < assumeDeadMs");
+        public LeaderElectorConfiguration build() throws LeaderElectorConfigurationException {
+
+            if (intervalMs == null) {
+                intervalMs = DEFAULT_INTERVAL_MS;
             }
+            if (assumeDeadMs == null) {
+                assumeDeadMs = Math.max(intervalMs + 3000, intervalMs * 2);
+            }
+            if (queryTimeoutSecs == null) {
+                queryTimeoutSecs = (int) Math.min(5, (intervalMs*1000)/2);
+            }            
+            if (roleId == null) {
+                roleId = DEFAULT_ROLEID;
+            }
+            if (candidateId == null) {
+                candidateId = DEFAULT_CANDIDATEID;
+            }
+            if (leaderElectorLogger == null) {
+                leaderElectorLogger = DEFAULT_LOGGER;
+            }
+            if (tableName == null) {
+                tableName = DEFAULT_TABLENAME;
+            }
+            if (listener == null) {
+                listener = new LeaderElectorListener.NoOpListener();
+            }
+            if (listenerSubscription == null) {
+                listenerSubscription = DEFAULT_SUBSCRIPTION;
+            }
+            if (createTable == null) {
+                createTable = DEFAULT_CREATE_TABLE;
+            }
+            
+            // Validation
+            if (intervalMs >= (assumeDeadMs - 3000)) {
+                throw new LeaderElectorConfigurationException("assumeDeadMs must be at least 3 seconds larger than intervalMs");
+            }           
+            
+            
+
+
             return new LeaderElectorConfiguration(
                     roleId,
                     candidateId, 
@@ -587,7 +735,9 @@ public class LeaderElectorConfiguration {
                     assumeDeadMs, 
                     listener, 
                     listenerSubscription, 
-                    queryTimeoutSecs);
+                    queryTimeoutSecs,
+                    createTable
+            );
         }
     }
 }

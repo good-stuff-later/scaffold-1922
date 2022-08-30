@@ -20,7 +20,7 @@ import net.lbruun.dbleaderelect.internal.core.SQLLeaderElect;
 import java.sql.SQLException;
 import javax.sql.DataSource;
 import net.lbruun.dbleaderelect.mocks.LeaderElectTableRow;
-import net.lbruun.dbleaderelect.internal.sqltexts.SQLTexts;
+import net.lbruun.dbleaderelect.internal.sql.SQLCmds;
 import org.junit.jupiter.api.Assertions;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,7 +36,7 @@ public class SQLLeaderElectTest {
             = LeaderElectorConfiguration.builder()
                     .withDatabaseEngine(DatabaseEngine.POSTGRESQL) // Doesn't matter, we are using a mock
                     .build();
-    private static final  SQLTexts SQL_TEXTS = SQLTexts.getSQL(CONF);
+    private static final  SQLCmds SQL_TEXTS = SQLCmds.getSQL(CONF);
     private static String TABLENAME_DISPLAY = "testschema.testable";
     
     

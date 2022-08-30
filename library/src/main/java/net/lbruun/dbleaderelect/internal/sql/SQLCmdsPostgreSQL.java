@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.lbruun.dbleaderelect.internal.sqltexts;
+package net.lbruun.dbleaderelect.internal.sql;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -22,28 +22,27 @@ import net.lbruun.dbleaderelect.LeaderElectorConfiguration;
 
 /**
  *
- * @author lbruun
  */
-public class SQLTextsMySQL extends SQLTexts {
+public class SQLCmdsPostgreSQL extends SQLCmds {
     
     private static final String SQL_CURRENT_UTC_MS = 
-            "CAST(1000*UNIX_TIMESTAMP(current_timestamp(3)) AS UNSIGNED INTEGER)";
+            "CAST(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP(3))*1000 AS bigint)";
 
-    public SQLTextsMySQL(LeaderElectorConfiguration configuration) {
+    public SQLCmdsPostgreSQL(LeaderElectorConfiguration configuration) {
         super(configuration);
     }
 
     public String currentUtcMsExpression() {
         return SQL_CURRENT_UTC_MS;
     }
-    
+
     @Override
-    public PreparedStatement getInsertRoleSQL(Connection connection, String roleId) throws SQLException {
-        String sql = "INSERT IGNORE INTO " + getTabName() + " " + getInsertColumnList()
-                + " VALUES " + getInsertValuesListWithDefaults();
+    public PreparedStatement getInsertRoleStmt(Connection connection, String roleId) throws SQLException {
+        String sql = "INSERT INTO " + getTabName() +  " " + COLUMN_LIST_FOR_INSERT
+                   +  " VALUES " + VALUES_LIST_FOR_INSERT
+                   +  " ON CONFLICT DO NOTHING";
         PreparedStatement preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1, roleId);
         return preparedStatement;
     }
-
 }

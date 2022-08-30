@@ -15,6 +15,9 @@
  */
 package net.lbruun.dbleaderelect;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 /**
  * Catches informational startup and closedown messages from a Leader Elector
  * instance. Users who wish to forward such messages to the logging framework 
@@ -28,11 +31,11 @@ public interface LeaderElectorLogger {
      */
     public static final LeaderElectorLogger NULL_LOGGER =  new LeaderElectorLogger(){
         @Override
-        public void logInfo(Class klazz, String message) {
+        public void logInfo(Class sourceKlazz, String message) {
         }
 
         @Override
-        public void logError(Class klazz, String message, Throwable cause) {
+        public void logError(Class sourceKlazz, String message, Throwable cause) {
         }
     };
     
@@ -41,13 +44,13 @@ public interface LeaderElectorLogger {
      */
     public static final LeaderElectorLogger STDOUT_LOGGER = new LeaderElectorLogger(){
         @Override
-        public void logInfo(Class klazz, String message) {
-            System.out.println(klazz.getName() + ": " + message);
+        public void logInfo(Class sourceKlazz, String message) {
+            System.out.println(sourceKlazz.getName() + ": " + message);
         }
 
         @Override
-        public void logError(Class klazz, String message, Throwable cause) {
-            System.err.println(klazz.getName() + "ERROR: " + message);
+        public void logError(Class sourceKlazz, String message, Throwable cause) {
+            System.err.println(sourceKlazz.getName() + "ERROR: " + message);
             if (cause != null) {
                 cause.printStackTrace(System.err);
             }
@@ -55,6 +58,22 @@ public interface LeaderElectorLogger {
     };
         
     
+    /**
+     * Logger based on J.U.L (java.util.logging), the JDK's default logging
+     * framework.
+     */
+    public static final LeaderElectorLogger JUL_LOGGER = new LeaderElectorLogger(){
+        @Override
+        public void logInfo(Class sourceKlazz, String message) {
+            Logger.getLogger(sourceKlazz.getName()).log(Level.INFO, message);
+        }
+
+        @Override
+        public void logError(Class sourceKlazz, String message, Throwable cause) {
+            Logger.getLogger(sourceKlazz.getName()).log(Level.SEVERE, message, cause);
+        }
+    };
+
     /**
      * Gets called when there are informational messages from the Leader Elector
      * related to startup and close-down of the Leader Elector instance.
@@ -73,10 +92,10 @@ public interface LeaderElectorLogger {
      * <p>
      * The method must return quickly and must not throw exceptions.
      *
-     * @param klazz the class which emitted the message.
+     * @param sourceKlazz the class which emitted the message.
      * @param message message to be logged
      */
-    public void logInfo(Class klazz, String message);
+    public void logInfo(Class sourceKlazz, String message);
 
     /**
      * Gets called when there are problems delivering events into the
@@ -90,10 +109,10 @@ public interface LeaderElectorLogger {
      * <p>
      * The method must return quickly and must not throw exceptions.
      * 
-     * @param klazz the class which emitted the message.
+     * @param sourceKlazz the class which emitted the message.
      * @param message message to be logged
      * @param cause the exception
      */
-    public void logError(Class klazz, String message, Throwable cause);
+    public void logError(Class sourceKlazz, String message, Throwable cause);
 
 }

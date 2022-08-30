@@ -57,6 +57,9 @@ import net.lbruun.dbleaderelect.internal.utils.ThreadFactoryWithNamePrefix;
  * <p>
  * {@link #close() Closing} the instance will mean that any current leadership
  * will be relinquished.
+ * 
+ * <p>
+ * Class is thread-safe.
  */
 public class LeaderElector implements AutoCloseable {
 
@@ -112,6 +115,8 @@ public class LeaderElector implements AutoCloseable {
 
         sqlLeaderElect = new SQLLeaderElect(this.configuration, dataSource, tableNameDisplay);
         
+        
+        
         try {
             sqlLeaderElect.ensureRoleRow();
         } catch (SQLException ex) {
@@ -129,7 +134,7 @@ public class LeaderElector implements AutoCloseable {
 
     /**
      * Gets the resolved configuration used by the Leader Elector. "Resolved"
-     * means that any values which are auto-detected are filled-in. For this
+     * means that any values which are auto-detected are updated. For this
      * reason, the object returned here is not necessarily the same object as
      * was input in the constructor.
      *
@@ -142,7 +147,7 @@ public class LeaderElector implements AutoCloseable {
     private void verifyConnection() throws LeaderElectorPreFlightException {
         int timeoutSecs = 10;
         boolean isValid = false;
-        try ( Connection connection = dataSource.getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             isValid = connection.isValid(timeoutSecs);
         } catch (SQLException ex) {
             throw new LeaderElectorPreFlightException("Could not connect to database", ex);
@@ -187,7 +192,7 @@ public class LeaderElector implements AutoCloseable {
         int maxJitter = (int) (configuration.getIntervalMs() / 3);
         int jitter = ThreadLocalRandom.current().nextInt(maxJitter + 1);
         executorElector.scheduleWithFixedDelay(
-                getRunnable(null), // task to execute
+                getRunnable(false, true), // task to execute
                 jitter, // initial delay 
                 configuration.getIntervalMs(), // subsequent delay
                 TimeUnit.MILLISECONDS);
@@ -206,14 +211,28 @@ public class LeaderElector implements AutoCloseable {
     /**
      * Relinquishes current leadership, if any. This will allow other
      * candidates to become leader. The current candidate is excluded from being
-     * a leader election until a new (other) leader has been appointed.
+     * a leader until a new (other) leader has been appointed.
      * 
+     * <p>
+     * The action is carried out immediately, rather than waiting for 
+     * {@link LeaderElectorConfiguration.Builder#withIntervalMs(long) next interval}.
+     * 
+     * <p>
+     * If this instance if currently leader then calling this method will
+     * result in {@link LeaderElectorListener.EventType#LEADERSHIP_LOST}
+     * event after a short while. If this instance is not currently leader
+     * then no event will be propagated.
      */
-    public void relinquish() {
+    public synchronized void relinquish() {
         if (closing) {
             return;
         }
-        executorElector.schedule(getRunnable(Boolean.TRUE), 0, TimeUnit.MILLISECONDS);
+        if (!sqlLeaderElect.isLeader()) {
+            return;
+        }
+        executorElector.schedule(getRunnable(
+                true, 
+                true), 0, TimeUnit.MILLISECONDS);
     }
     
     /**
@@ -249,18 +268,24 @@ public class LeaderElector implements AutoCloseable {
         return closing;
     }
 
-    private Runnable getRunnable(Boolean relinquish) {
+    private Runnable getRunnable(int loginTimeoutSecs, final boolean relinquish, final boolean propagateEvent) {
         return () -> {
             try {
-                LeaderElectorListener.Event event = sqlLeaderElect.electLeader((relinquish != null) ? relinquish : closing);
-                sendEvent(event);
-                if (event.isNonRecoverableError()) {
-                    close();
+                if (loginTimeoutSecs > 0) {
+                    dataSource.setLoginTimeout(loginTimeoutSecs);
                 }
-            } catch (Exception ex) {
+                LeaderElectorListener.Event event = sqlLeaderElect.electLeader(relinquish);
+                if (propagateEvent) {
+                    sendEvent(event);
+                }
+            } catch (Exception ex) {                
                 ex.printStackTrace();
             }
         };
+    }
+
+    private Runnable getRunnable(final boolean relinquish, final boolean propagateEvent) {
+        return getRunnable(-1, relinquish, propagateEvent);
     }
 
     private void sendEvent(final LeaderElectorListener.Event event) {
@@ -294,6 +319,7 @@ public class LeaderElector implements AutoCloseable {
     /**
      * Closes down the Leader Elector. If the current candidate has leadership then
      * such leadership is relinquished on a best-effort basis before close-down.
+     * No events will be propagated as a result of this attempt.
      *
      * <p>
      * After this method returns, {@link isClosed()}} will return {@code true}.
@@ -310,9 +336,18 @@ public class LeaderElector implements AutoCloseable {
         this.configuration.getLeaderElectorLogger().logInfo(
                 this.getClass(), "Leader Elector is closing down");
 
-        // Make a best-effort attempt at relinquishing current
-        // leadership (if any). Events from this attempt are not propagated.
-        executorElector.schedule(getRunnable(null), 0, TimeUnit.MILLISECONDS);
+        // Make a best-effort attempt at relinquishing current leadership (if any). 
+        // Events from this attempt are not propagated.
+        // We do not want to wait long time for connection to database to be obtained
+        // so set to 10 secs maximum.
+        executorElector.schedule(
+                getRunnable(
+                        10,   // max login time in seconds
+                        true, // relinquish ?
+                        false // propagateEvent ?
+                ),
+                0,  // immediate execution
+                TimeUnit.MILLISECONDS);
 
         executorElector.shutdown();
         executorNotifier.shutdown();
