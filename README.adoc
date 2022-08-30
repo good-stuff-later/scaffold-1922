@@ -33,6 +33,7 @@ toc::[]
 
 ## Features
 
+- No dependencies.
 - No permanent JDBC session. This means it works transparently with a `DataSource` 
   from a JDBC Connection Pool implementation.
 - Easy to reason about. Means we can express with great certainty the what it will be good at
@@ -383,19 +384,34 @@ Reasonable defaults are defined for most properties.
 |integer
 |Defines the number of milliseconds after which the Leader Elector will decide that a leader is dead if it hasn't renewed its lease within this time. If a lease is older than this value, then the Leader Elector will assume the leader is dead - as leader candidate hasn't properly renewed its own lease - and the lease is now up for grabs by another candidate. Meaning another candidate may now assume leader role.
 
-If set, the value must be at least 3 seconds larger than `intervalMs`. It is suggested to use a value 2x `intervalMs`. The difference between `assumeDeadMs`` and `intervalMs`` is the allowance for how late in renewing its lease a leader can be without being dethroned. The difference must allow for network latencies, garbage collection stalls, temporary CPU starvation or any reason which will cause the renewal process to be late.
+If set, the value must be at least 3 seconds larger than `intervalMs`. It is suggested to use a value 2x `intervalMs`. The difference between `assumeDeadMs` and `intervalMs` is the allowance for how late in renewing its lease a leader can be without risking being dethroned. The difference between the two must allow for network latencies, garbage collection stalls, temporary CPU starvation or any reason which will cause the renewal process to be late.
 
 If not set: Defaults to 2x `intervalMs`, however at least 3 seconds.
+
+|roleId
+|String
+|Role to compete for. Candidates compete for a particular role. Each role is an election of its own. 
+
+The value must be no longer than 
+https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect/LeaderElectorConfiguration.html#ROLEID_MAX_LENGTH[ROLEID_MAX_LENGTH].
+Most applications only need a single leader role to compete for and therefore do not need to set this value.
+
+Defaults to 
+https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect/LeaderElectorConfiguration.html#DEFAULT_ROLEID[DEFAULT_ROLEID], 
+if not set.
 
 |candidateId
 |String
 |Defines an id for the current candidate. The value must be unique between all candidates participating
 in a leader election for the same role.
 
-The value must be no longer than CANDIDATEID_MAX_LENGTH. 
-If longer, it will automatically be truncated to this length.
+The value must be no longer than 
+https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect/LeaderElectorConfiguration.html#CANDIDATEID_MAX_LENGTH[CANDIDATEID_MAX_LENGTH]
+If longer, it will silently be truncated to this length.
 
-Defaults to `NodeIdUtils.getPidAndComputerName()`` if not set. For example: `32399@myhost`.
+Defaults to 
+https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect/utils/NodeIdUtils.html#getPidAndComputerName()[NodeIdUtils.getPidAndComputerName()]
+if not set. For example: `32399@myhost`.
 This will be sufficient for most use cases. Another possibility is to use an UUID value.
 
 The NodeIdUtils class defines useful methods which can act as input to this value.
