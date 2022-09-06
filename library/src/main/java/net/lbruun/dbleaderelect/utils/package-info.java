@@ -13,26 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.lbruun.dbleaderelection.example2;
-
-import net.lbruun.dbleaderelect.LeaderElectorLogger;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- *
+ * Utilities.
  */
-public class SpringLeaderElectorLogger implements LeaderElectorLogger {
-
-    private Logger logger = LoggerFactory.getLogger(SpringLeaderElectorLogger.class);
-
-    @Override
-    public void logInfo(Class originatingClass, String msg) {
-        logger.info(msg);
-    }
-
-    @Override
-    public void logError(Class originatingClass, String msg, Throwable thrwbl) {
-        logger.error(msg, thrwbl);
-    }
-}
+package net.lbruun.dbleaderelect.utils;

@@ -45,4 +45,9 @@ public class SQLCmdsPostgreSQL extends SQLCmds {
         preparedStatement.setString(1, roleId);
         return preparedStatement;
     }
+
+    @Override
+    public boolean isTableAlreadyExistException(SQLException ex) {
+        return (ex.getSQLState().equals("42P07"));
+    }
 }

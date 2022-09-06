@@ -1,0 +1,4 @@
+# Add DbLeaderElection Auto-Configuration class to list of Spring Boot's auto-configurations
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=net.lbruun.dbleaderelection.springboot.autoconfigure.DbLeaderElectionAutoConfiguration
+#
+#

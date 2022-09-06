@@ -15,8 +15,6 @@
  */
 package net.lbruun.dbleaderelection.example2.jpa;
 
-import net.lbruun.dbleaderelection.example2.jpa.PersonRepo;
-import net.lbruun.dbleaderelection.example2.jpa.Person;
 import java.time.LocalDate;
 import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,8 +26,6 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
  * Example Unit test. Not meant to be a show case for 
  * best practice of writing Spring Boot JPA unit tests.
  *
- * The main point here is that you can use the @DataJpaTest 
- * annotation because it will include Pre-Liquibase auto-configuration
  */
 @DataJpaTest
 public class PersonRepoTest {

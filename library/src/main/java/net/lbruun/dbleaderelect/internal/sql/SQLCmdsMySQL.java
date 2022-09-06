@@ -45,4 +45,8 @@ public class SQLCmdsMySQL extends SQLCmds {
         return preparedStatement;
     }
 
+    @Override
+    public boolean isTableAlreadyExistException(SQLException ex) {
+        return (ex.getSQLState().equals("42S01"));
+    }
 }

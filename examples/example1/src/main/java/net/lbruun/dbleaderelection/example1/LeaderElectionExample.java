@@ -98,14 +98,14 @@ public class LeaderElectionExample implements LeaderElectorListener, LeaderElect
      * executes quickly so as to not block the thread.
      */
     @Override
-    public void onLeaderElectionEvent(Event event) {
+    public void onLeaderElectionEvent(Event event, LeaderElector leaderElector) {
         
         LOGGER.log(Level.FINEST, "Received leader election event : {0}", event);
         errorHandling(event);
 
         switch (event.getEventType()) {
             case LEADERSHIP_ASSUMED:
-                LOGGER.log(Level.INFO, "Leadership assumed from candidate {0}", event.getCandidateId());
+                LOGGER.log(Level.INFO, "Leadership assumed from previous leader {0}", event.getCandidateId());
                 // Here: We can optionally extract 'leaseCounter' from the event
                 // and use as a fencing token on an external resource. 
                 // This example does not demonstrate this.

@@ -22,7 +22,6 @@ import net.lbruun.dbleaderelect.LeaderElectorConfiguration;
 import net.lbruun.dbleaderelect.DatabaseEngine;
 import net.lbruun.dbleaderelect.LeaderElector;
 import static net.lbruun.dbleaderelect.LeaderElector.NO_LEADER_CANDIDATE_ID;
-import net.lbruun.dbleaderelect.exception.LeaderElectorExceptionNonRecoverable;
 import net.lbruun.dbleaderelect.exception.LeaderElectorPreFlightException;
 
 /**
@@ -156,15 +155,17 @@ public abstract class SQLCmds {
         return selectSQL;
     }
     
-    
-   public String getBigIntStr() {
-       return "bigint";
-   }
+    public String getBigIntStr() {
+        return "bigint";
+    }
+
+    public String getVarcharStr() {
+        return "varchar";
+    }
    
-   public String getVarcharStr() {
-       return "varchar";
-   }
-   
+    public boolean isTableAlreadyExistException(SQLException ex) {
+        return false;
+    }
     /**
      * Statement which returns a single row with a single column with value
      * which is the milliseconds since epoch as derived from the time in the

@@ -13,29 +13,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.lbruun.dbleaderelection.example2;
+package net.lbruun.dbleaderelect.spring;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import net.lbruun.dbleaderelect.LeaderElectorListener;
-import org.springframework.util.StringUtils;
 
 /**
- *
+ * Converts from a string list (comma-separated) into an
+ * {@code EnumSet<LeaderElectorListener.EventType>}.
+ * 
+ * <p>
+ * The string list must be either:
+ * 
+ * <ul>
+ *   <li>The text {@code "#ALL#"}. This means all possible values of the Enum.</li>
+ *   <li>Comma-separated list of enums to be excluded. Each enum must be prefixed
+ *       with a {@code "-"}. For example, the value {@code "-X1,-X2"} means 
+ *       all enums <i>except</i> {@code X1} and {@code X2}.</li>
+ *   <li>Comma-separated list of enums to be included. For example, the value {@code "X1,X2"} 
+ *       means <i>only</i> the enums {@code X1} and {@code X2}.</li>
+ * </ul>
+ * 
+ * <p>
+ * The difference from Spring Boot's own implementation is the ability to
+ * specify 'all' and the ability to specify 'all, except..'.
  */
-public class EventTypesListConversion  {
+class EventTypesListConversion  {
 
     private static final String ALL = "#ALL#";
 
     private EventTypesListConversion() {}
     
     public static EnumSet<LeaderElectorListener.EventType> convert(String source) {
-        if (source == null || source.isBlank()) {
+        if (source == null || source.trim().isEmpty()) {
             return null;
         }
-        String s = StringUtils.trimWhitespace(source);
+        
+        String s = source.trim();
         if (s.contains(ALL)) {
             if (s.equals(ALL)) {
                 return EnumSet.allOf(LeaderElectorListener.EventType.class);
@@ -43,8 +60,7 @@ public class EventTypesListConversion  {
                 throw new IllegalArgumentException("Invalid value for EnumSet : " + source);
             }
         } else {
-            s = StringUtils.trimAllWhitespace(s);
-            String[] elements = s.split("\\,");
+            String[] elements = s.split("\\s*\\,\\s*");
             if (s.contains("-")) {
                 if (!Arrays.stream(elements).allMatch((t) -> {
                     return t.startsWith("-") && (t.length() > 1);
@@ -62,10 +78,8 @@ public class EventTypesListConversion  {
                 for (String e : elements) {
                     list.add(LeaderElectorListener.EventType.valueOf(e));
                 }
-                EnumSet<LeaderElectorListener.EventType> plusses = EnumSet.copyOf(list);
-                return EnumSet.complementOf(plusses);
+                return EnumSet.copyOf(list);
             }
         }
     }
-    
 }

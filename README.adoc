@@ -14,8 +14,8 @@ endif::[]
 
 image:https://img.shields.io/badge/License-Apache%202.0-blue.svg[link="http://www.apache.org/licenses/LICENSE-2.0",target=_blank]
 image:https://github.com/lbruun/dbleaderelection/actions/workflows/main.yml/badge.svg[CI,link="https://github.com/lbruun/dbleaderelection/actions/workflows/main.yml"]
-image:https://maven-badges.herokuapp.com/maven-central/net.lbruun.springboot/preliquibase-spring-boot-starter/badge.svg[link="https://maven-badges.herokuapp.com/maven-central/net.lbruun.springboot/preliquibase-spring-boot-starter"]
-image:https://javadoc.io/badge2/net.lbruun.springboot/preliquibase-spring-boot-autoconfigure/javadoc.svg[javadoc,link="https://javadoc.io/doc/net.lbruun.springboot/preliquibase-spring-boot-autoconfigure"]
+image:https://maven-badges.herokuapp.com/maven-central/net.lbruun.dbleaderelection/library/badge.svg[link="https://maven-badges.herokuapp.com/maven-central/net.lbruun.dbleaderelection/library"]
+image:https://javadoc.io/badge2/net.lbruun.dbleaderelection/library/javadoc.svg[javadoc,link="https://javadoc.io/doc/net.lbruun.dbleaderelection/library"]
 
 *Database-driven leader election.*
 
@@ -33,21 +33,77 @@ toc::[]
 
 ## Features
 
+- Requires no extra infrastructure. (assuming the application already uses a database)
 - No dependencies.
-- No permanent JDBC session. This means it works transparently with a `DataSource` 
-  from a JDBC Connection Pool implementation.
-- Easy to reason about. Means we can express with great certainty the what it will be good at
-  and what it will be less good at.
-- Simple to use. Examples exists for use with Spring Boot or plain vanilla Java SE.
-- Works with standard databases.
-- Well tested. (we use TestContainers to simulate real-life)
+- Works with most databases.
+- Works with `DataSource` (probably same as you use for rest of your application)
+- No long-lived JDBC session needed. This means it works transparently with a `DataSource` 
+  from any JDBC Connection Pool implementation.
 - Supports fencing token when protection against dual leadership is important.
+- Does not require time consencus between participants. (it doesn't matter if clocks are
+  syncronized or not)
+- Simple to use. Examples exists for use with Spring Boot or plain vanilla Java SE.
+- Well tested. (we use https://www.testcontainers.org/[TestContainers] for 
+   integration testing for each database engine individually)
 - Well documented.
-- Easy on the database. The lease-based approach means that nodes only periodically need to 
-contact the database.
+
+
+## Quick start
+
+1. Add Maven dependency to your project.
+1. Make sure the table that the leader election process needs, exists. You can either
+   ask the library to create it for you (configuration property `createTable = true`) or you 
+   can create it outside of the application. See XXXX for more information.
+1. Create an instance of `LeaderElectorListener`. This is where your application
+   will receieve events from the leader election process.
+1. Instantiate an instance of LeaderElector using an LeaderElectorConfiguration 
+   and a `DataSource`` object. The most important aspect of the configuration is a reference
+   to a listener object which you created in the previous step.
+   The leader election process itself takes places in the background. For most applications
+   the LeaderElector will be a singleton and will exist throughout the lifetime of the
+   application.
+
+## A word about leader election
+
+Before using any form of leader election in your application you should know _why_ you are
+doing it. It is not that many applications that actually require it and it can often be avoided
+by using an alternative strategy. However, there are situations - for example scheduling of tasks - where it makes
+sense that one proces, and one process only, performs the work. 
+
+Leader election is difficult to get right. In fact - no matter the method used - no guarantees can
+be made. In a distributed environment there is no such thing as a perfect algorithm.
+Regardless of the methodology you use for leader election, whether it is DbLeaderElection or something else,
+you should ideally design your tasks so that they are idempotent. This way, it will not be catastrophic if a given 
+task is carried out more than once. 
+
+Different algorithms for leader election have different characteristica. DbLeaderElection uses
+an easy-to understand methodology: periodically polling a central "lease" mechanism. It requires
+no additional infrastructure or additional daemons. However, because of the polling it is 
+not fast. A fair amount of time (between the polls) can pass where there might be no leader.
+For many applications this is acceptable. 
 
 
 
+## Listener
+
+The Listener is where you receive events from the leader election process. Or more precisely:
+from the background threads started by `LeaderElector`. 
+
+
+### Error handling
+
+As the leader election process takes place in the background, errors from the process are propagated 
+to you via the Listener. It is paramount that you check for and react to these errors.
+DbLeaderElection is pretty opinionated about errors. It deliberately errs on the side
+of caution when it classifies the errors propagated to the Listener into either _recoverable_
+or _non-recoverable_. In fact if a recoverable error happens 3 times in a row
+then it will be converted to a non-recoverable error.
+
+For many applications the most appropriate strategy will be to exit the application in case
+of errors from leader election process, in particular on non-recoverable errors.
+
+Because events are received on a dedicated "notification thread" owned by the LeaderElector, 
+throwing the error on this thread may not have the effect that you expect.
 
 
 == Why is leader election hard?
@@ -135,7 +191,7 @@ election "for efficiency" and that is a much better situation to be in.
 
 ## Table
 
-
+DbLeaderElect requires a small table which is where it "stores" the lease. 
 
 [source,sql]
 ----
@@ -149,8 +205,31 @@ CREATE TABLE db_leader_elect
      PRIMARY KEY (role_id)
   );
 ----
+(or equivalent depending on database engine)
 
 Table will never have more than a few rows so you need not be concerned about storage.
+Table name and schema name will be as per configuration properties `tableName` and 
+`schemaName`.
+
+The are multiple ways to ensure that the table exist:
+
+1. You can let the library create the table (see configuration property `createTable`). 
+This is the easiest solution.
+1. You can have the application create the table using Liquibase or Flyway. A Liquibase
+changeset import is included in the JAR at classpath location 
+`net/lbruun/dbleaderelect/liquibase/db.changelog_db_leader_elect.yaml` which can be
+used like this 
+[source,yaml]
+----
+databaseChangeLog:
+  - include:
+      # DbLeaderElection setup
+      file: net/lbruun/dbleaderelect/liquibase/db.changelog_db_leader_elect.yaml
+      relativeToChangelogFile: false
+----
+You can see how this might be done in Example 2.
+1. You can have the table created outside of your application.
+
 
 ## Database support
 
@@ -433,7 +512,9 @@ WARNING: For MySQL/MariaDB the concept of "schema" is effectively synonymous wit
 
 |`tableName`
 |String
-|Unqualified name of the table which is used to keep track of current leadership. The table must already exist.
+|Unqualified name of the table which is used to keep track of current leadership. The table must
+either exist beforehand or you can let the library create the table automatically if it
+doesn't already e
 
 Defaults to 
 https://javadoc.io/doc/net.lbruun.dbleaderelection/library/latest/net/lbruun/dbleaderelect/LeaderElectorConfiguration.html#DEFAULT_TABLENAME[DEFAULT_TABLENAME]
@@ -454,23 +535,9 @@ if not set.
 
 |`createTable`
 |boolean
-|If the leader election table should be created if it does not already exist?. If `true``, then at every instantiation of LeaderElector class a check will be made to see if the table already exists. If not, it will be created.
+|If the leader election table should be created if it does not already exist?. If `true``, then at every instantiation of LeaderElector class a check will be made to see if the table already exists. If not, it will be created. 
 
-The table will be created like this (generic form):
-
-[source,sql]
-----
- CREATE TABLE [<configuration.schemaName>.]<configuration.tableName>
-  (
-     role_id               VARCHAR(20)    NOT NULL,
-     candidate_id          VARCHAR(256)   NOT NULL,
-     last_seen_timestamp   BIGINT         NOT NULL,
-     lease_counter         BIGINT         NOT NULL,
-     PRIMARY KEY(role_id)
-  )
-----
-
-(with column types replaced as appropriate for the given database engine)
+Defaults to `false`.
 
 |===
 

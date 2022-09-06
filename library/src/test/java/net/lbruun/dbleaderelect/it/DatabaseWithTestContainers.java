@@ -303,6 +303,36 @@ public abstract class DatabaseWithTestContainers {
     }
 
     
+    @Test
+    @Order(7)
+    public void testTableAlreadyExistIgnore() throws SQLException  {
+        System.out.println("Test: TableAlreadyExistIgnore");
+        LeaderElectorConfiguration config = LeaderElectorConfiguration.builder()
+                .withTableName("tab_create_test_table_x")
+                .withDatabaseEngine(getDatabaseEngineType())
+                .withCreateTable(true)
+                .build();
+
+        SQLCmds sqlCmds = SQLCmds.getSQL(config);
+        try ( Connection connection = getDataSource().getConnection()) {
+            if (!SQLUtils.tableExists(connection, config.getSchemaName(), config.getTableName())) {
+                System.out.println("Creating table " + sqlCmds.getTabName());
+                try (PreparedStatement stmt = sqlCmds.getCreateTableStmt(connection)) {
+                    stmt.execute();
+                }
+                System.out.println("Table " + sqlCmds.getTabName() + " created.");
+                System.out.println("Creating table " + sqlCmds.getTabName());
+
+                try (PreparedStatement stmt = sqlCmds.getCreateTableStmt(connection)) {
+                    stmt.execute();
+                } catch (SQLException ex) {
+                    assertTrue(sqlCmds.isTableAlreadyExistException(ex));
+                }                
+                SQLUtilsTestHelper.dropTable(connection, config.getSchemaName(), config.getTableName());
+            }
+        }
+    }
+    
     /**
      * Tests if the "SELECT FOR UPDATE" (or similar) is truly only letting one database
      * session in at a time. This is meant to test if the locking mechanism in
@@ -320,7 +350,8 @@ public abstract class DatabaseWithTestContainers {
         final AtomicLong counter = new AtomicLong(0);
 
 
-        // Insert row so that following SELECT can proceeed            
+        // Insert row so that following SELECT can proceeed. Without a row
+        // we have nothing to lock upon.
         try ( Connection connection = getDataSource().getConnection()) {
             try ( PreparedStatement pstmt = sqlTexts.getInsertRoleStmt(connection, config.getRoleId())) {
                 pstmt.executeUpdate();

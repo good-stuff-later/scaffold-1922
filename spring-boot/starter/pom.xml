@@ -3,29 +3,34 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>net.lbruun.dbleaderelection</groupId>
-        <artifactId>parent</artifactId>
+        <artifactId>dbleaderelection-spring-boot-parent</artifactId>
         <version>0.9.2-SNAPSHOT</version>
     </parent>
-    <artifactId>examples</artifactId>
-    <packaging>pom</packaging>
-    <name>DBLeaderElection - Examples</name>
-    <modules>
-        <module>example1</module>
-        <module>example2</module>
-        <module>example3</module>
-    </modules>
+    <artifactId>spring-boot-starter-dbleaderelection</artifactId>
+    <packaging>jar</packaging>
+    <properties>
+        <exec.mainClass>net.lbruun.dbleaderelection.starter.Starter</exec.mainClass>
+    </properties>
+    <name>Spring Boot AutoConfiguration :: DbLeaderElection - Starter</name>
     
+    <dependencies>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>spring-boot-autoconfigure-dbleaderelection</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
-            <!-- Skip deploying module -->
+            <!-- Do deploy current project -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>
                 <configuration>
-                    <skip>true</skip>
+                    <skip>false</skip>
                 </configuration>
             </plugin>
         </plugins>
     </build>
-
 </project>

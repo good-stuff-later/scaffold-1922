@@ -18,6 +18,9 @@ package net.lbruun.dbleaderelection.example2;
 import javax.sql.DataSource;
 import net.lbruun.dbleaderelect.LeaderElector;
 import net.lbruun.dbleaderelect.LeaderElectorConfiguration;
+import net.lbruun.dbleaderelect.LeaderElectorListener;
+import net.lbruun.dbleaderelect.spring.SpringLeaderElectorProperties;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -28,8 +31,22 @@ import org.springframework.context.annotation.Configuration;
 public class LeaderElectionExampleConfiguration {
     
     @Bean
-    public LeaderElector getLeaderElector(SpringLeaderElectionProperties props, DataSource dataSource) {
-        LeaderElectorConfiguration configuration = props.configuration();
+    @ConfigurationProperties(prefix="dbleaderelection")
+    public SpringLeaderElectorProperties springLeaderElectorProperties() {
+        return new SpringLeaderElectorProperties();
+    }
+    
+    @Bean
+    public LeaderElectorListener leaderElectorListener() {
+        return new LeaderElectionExampleListener();
+    }
+    
+    @Bean
+    public LeaderElector leaderElector(
+            SpringLeaderElectorProperties props, 
+            DataSource dataSource, 
+            LeaderElectorListener leaderElectorListener) {
+        LeaderElectorConfiguration configuration = props.configuration(leaderElectorListener);
         return new LeaderElector(configuration, dataSource);
     }
 }

@@ -48,8 +48,9 @@ public interface LeaderElectorListener {
          *   </li>
          *   <li>There was a technical error during processing, for example an 
          *       temporary error in accessing the database. The logic will in this case err
-         *       on the side of caution and treat it as a case of lost leadership.
-         *       In this scenario {@link Event#getErrors()} will return a non-null value.
+         *       on the side of caution and treat it as a case of lost leadership
+         *       regardless if the error 
+         *       In this scenario {@link Event#getErrors() Event.getErrors()} will return a non-null value.
          *   </li>
          * </ol>
          */
@@ -59,12 +60,16 @@ public interface LeaderElectorListener {
          * Leadership cannot be determined. This is an abnormal event.
          *
          * <p>
-         * The candidate was not the leader before the leader election
-         * process which triggered this event. However, there was an error during processing
-         * ({@link Event#getErrors()} will return a non-null value) so it cannot
-         * be determined if a new leader should be promoted. If other candidates
-         * experience the same problem then the system as a whole may be without
-         * leader until the problem is resolved.
+         * The candidate was not the leader before the leader election process
+         * which triggered this event. However, there was an error during
+         * processing so it cannot be determined if a new leader should be
+         * promoted. If other candidates experience the same problem then the
+         * system as a whole may be without leader until the problem is
+         * resolved.
+         *
+         * <p>
+         * For this event type, {@link Event#getErrors() Event.getErrors()} will 
+         * always return a non-null value.
          */
         LEADERSHIP_UNDETERMINED,
         
@@ -105,10 +110,7 @@ public interface LeaderElectorListener {
     }
     
     /**
-     * Callback method for events from the leader election process.
-     * This method is always invoked on the same dedicated thread.
-     * 
-     * <p>
+     * Callback method for events from the leader election process.This method is always invoked on the same dedicated thread.<p>
      * The method body must not throw exceptions. If the method indeed throws an
      * exception then the Leader Elector will be
      * {@link LeaderElector#close() closed} and will no longer be usable. To
@@ -132,8 +134,9 @@ public interface LeaderElectorListener {
      * returns quickly.
      *
      * @param event
+     * @param leaderElector the instance of LeaderElector which produced the event
      */
-    public void onLeaderElectionEvent(Event event);
+    public void onLeaderElectionEvent(Event event, LeaderElector leaderElector);
     
     /**
      * Event from the leader election process.
@@ -284,28 +287,25 @@ public interface LeaderElectorListener {
 
         /**
          * If the event represents a non-recoverable error?
-         * In such case there is no point for the LeaderElector to continue
-         * and indeed the given LeaderElector instance will automatically be
-         * closed and any attempt to use it will result in exception. The 
-         * application must remove references to the LeaderElector instance.
          * 
          * <p>
          * Depending on the application's environment and how important 
          * leader election is to the application, it may indeed be prudent to
-         * simply exit the application with error.
+         * simply exit the application with error when this type of event
+         * occurs.
          */
         default public boolean isNonRecoverableError() {
-        if (!hasErrors()) {
+            if (!hasErrors()) {
+                return false;
+            }
+            for (ErrorEvent errEvent : getErrors()) {
+                Throwable ex = errEvent.getError();
+                if (ex != null && ex instanceof LeaderElectorExceptionNonRecoverable) {
+                    return true;
+                }
+            }
             return false;
         }
-        for (ErrorEvent errEvent : getErrors()) {
-            Throwable ex = errEvent.getError();
-            if (ex != null && ex instanceof LeaderElectorExceptionNonRecoverable) {
-                return true;
-            }
-        }
-        return false;
-    }
     
         /**
          * Error event from the leader election process.
@@ -338,7 +338,7 @@ public interface LeaderElectorListener {
     public static final class NoOpListener implements LeaderElectorListener {
 
         @Override
-        public void onLeaderElectionEvent(Event event) {
+        public void onLeaderElectionEvent(Event event, LeaderElector leaderElector) {
             String prefixTxt = "Event from Leader Election process: ";
             switch (event.getEventType()) {
                 case LEADERSHIP_LOST: {

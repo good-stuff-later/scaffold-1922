@@ -26,6 +26,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.sql.DataSource;
 import net.lbruun.dbleaderelect.exception.LeaderElectorConfigurationException;
 import net.lbruun.dbleaderelect.exception.LeaderElectorPreFlightException;
@@ -80,6 +82,7 @@ public class LeaderElector implements AutoCloseable {
     private final LeaderElectorConfiguration configuration;
     private final DataSource dataSource;
     private final SQLLeaderElect sqlLeaderElect;
+    private final String tableNameDisplay;
 
     /**
      * Create a leader elector.
@@ -96,8 +99,6 @@ public class LeaderElector implements AutoCloseable {
                 this.getClass(), "Leader Elector starting (configuration: " + configuration + ")");
         this.dataSource = dataSource;
 
-        // Pre-flight check
-        verifyConnection();
 
         // Amend configuration with auto-detected values
         try {
@@ -107,15 +108,19 @@ public class LeaderElector implements AutoCloseable {
         }
 
         // Pre-flight check
-        String tableNameDisplay = verifyTable();
-
-        // Executors
-        executorElector = Executors.newScheduledThreadPool(1, new ThreadFactoryWithNamePrefix("LeaderElector-election"));
-        executorNotifier = Executors.newSingleThreadExecutor(new ThreadFactoryWithNamePrefix("LeaderElector-notification"));
-
+        tableNameDisplay = verifyConnection();
+        
         sqlLeaderElect = new SQLLeaderElect(this.configuration, dataSource, tableNameDisplay);
+       
+        if (configuration.createTable()) {
+            try {
+                sqlLeaderElect.ensureTable();
+            } catch (SQLException ex) {
+                throw new LeaderElectorPreFlightException("Could not create table " + tableNameDisplay, ex);
+            }
+        }
         
-        
+        verifyTable();
         
         try {
             sqlLeaderElect.ensureRoleRow();
@@ -123,6 +128,11 @@ public class LeaderElector implements AutoCloseable {
             String msg = "Could not insert row into " + tableNameDisplay + " for role_id='" + configuration.getRoleId() + "'";
             throw new LeaderElectorPreFlightException(msg, ex);
         }
+        
+        // Executors
+        executorElector = Executors.newScheduledThreadPool(1, new ThreadFactoryWithNamePrefix("LeaderElector-election"));
+        executorNotifier = Executors.newSingleThreadExecutor(new ThreadFactoryWithNamePrefix("LeaderElector-notification"));
+
         
         start();
 
@@ -144,29 +154,28 @@ public class LeaderElector implements AutoCloseable {
         return configuration;
     }
 
-    private void verifyConnection() throws LeaderElectorPreFlightException {
+    private String verifyConnection() throws LeaderElectorPreFlightException {
+        String schemaName = configuration.getSchemaName();
+        String tableName = configuration.getTableName();
         int timeoutSecs = 10;
         boolean isValid = false;
         try (Connection connection = dataSource.getConnection()) {
-            isValid = connection.isValid(timeoutSecs);
+            if (!connection.isValid(timeoutSecs)) {
+                throw new LeaderElectorPreFlightException("Could not validate existing connection within " + timeoutSecs + " seconds. The database is potentially deadlocked, sluggish or network is congested");
+            }
+            String schemaNameDisp = (schemaName == null) ? connection.getSchema() : schemaName;
+            schemaNameDisp = (schemaNameDisp == null) ? "" : schemaNameDisp + ".";
+            return schemaNameDisp + tableName;
         } catch (SQLException ex) {
             throw new LeaderElectorPreFlightException("Could not connect to database", ex);
         }
-
-        if (!isValid) {
-            throw new LeaderElectorPreFlightException("Could not validate existing connection within " + timeoutSecs + " seconds. The database is potentially deadlocked, sluggish or network is congested");
-        }
     }
-
-    private String verifyTable() throws LeaderElectorPreFlightException {
+    
+    private void verifyTable() throws LeaderElectorPreFlightException {
         String schemaName = configuration.getSchemaName();
         String tableName = configuration.getTableName();
 
         try ( Connection connection = dataSource.getConnection()) {
-            String schemaNameDisp = (schemaName == null) ? connection.getSchema() : schemaName;
-            schemaNameDisp = (schemaNameDisp == null) ? "" : schemaNameDisp + ".";
-
-            String tableNameDisplay = schemaNameDisp + tableName;
             // Check table exist
             if (!SQLUtils.tableExists(connection, schemaName, tableName)) {
                 throw new LeaderElectorPreFlightException("Table " + tableNameDisplay + " does not exist");
@@ -177,11 +186,11 @@ public class LeaderElector implements AutoCloseable {
                     = new SQLUtils.TableColumn[]{
                         new SQLUtils.TableColumn("role_id", java.sql.Types.VARCHAR, 20),
                         new SQLUtils.TableColumn("candidate_id", java.sql.Types.VARCHAR, 256),
-                        new SQLUtils.TableColumn("last_seen_timestamp", java.sql.Types.BIGINT)
+                        new SQLUtils.TableColumn("last_seen_timestamp", java.sql.Types.BIGINT),
+                        new SQLUtils.TableColumn("lease_counter", java.sql.Types.BIGINT)    
                     };
             SQLUtils.tableColumnVerification(connection, schemaName, tableName, expectedColumns);
             
-            return tableNameDisplay;
         } catch (SQLException ex) {
             throw new LeaderElectorPreFlightException("Error on initial verification", ex);
         }
@@ -298,7 +307,7 @@ public class LeaderElector implements AutoCloseable {
         if (listenerSubscription.contains(event.getEventType())) {
             executorNotifier.submit(() -> {
                 try {
-                    listener.onLeaderElectionEvent(event);
+                    listener.onLeaderElectionEvent(event, this);
                 } catch (Exception ex) {
                     String msg = "Error while propagating event from Leader Elector. Leader Elector will be shut down";
                     try {
@@ -350,6 +359,11 @@ public class LeaderElector implements AutoCloseable {
                 TimeUnit.MILLISECONDS);
 
         executorElector.shutdown();
+        try {
+            executorElector.awaitTermination(10, TimeUnit.SECONDS);
+        } catch (InterruptedException ex) {
+            // Swallow
+        }
         executorNotifier.shutdown();
         long durationMs = System.currentTimeMillis() - startTime;
         this.configuration.getLeaderElectorLogger().logInfo(

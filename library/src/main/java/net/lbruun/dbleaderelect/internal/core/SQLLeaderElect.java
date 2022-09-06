@@ -74,12 +74,25 @@ public class SQLLeaderElect {
         try (Connection connnection = this.dataSource.getConnection()) {
             if (!SQLUtils.tableExists(connnection, configuration.getSchemaName(), configuration.getTableName())) {
                 configuration.getLeaderElectorLogger().logInfo(this.getClass(), "Creating table " + tableNameDisplay);
+                
+                // Multiple processes might attempt to create the table at the exact
+                // samr time. This must not result in error.
+                
                 try (PreparedStatement createTableStmt = sqlCmds.getCreateTableStmt(connnection)) {
                     createTableStmt.execute();
+                } catch (SQLException ex) {
+                    // Ignore error of type "table already exist". Many databases
+                    // also have some kind of "create-if-not-exist" construction
+                    // but it is quite often not safe to use under concurrent load.
+                    // For this reason we use the below methodology instead:
+                    if (!sqlCmds.isTableAlreadyExistException(ex)) {
+                        throw ex;
+                    }
                 }
             }
         }
     }
+    
     public void ensureRoleRow() throws SQLException {
         try (Connection connnection = this.dataSource.getConnection()) {
             try (PreparedStatement p = sqlCmds.getInsertRoleStmt(connnection, this.configuration.getRoleId())) {
@@ -91,8 +104,6 @@ public class SQLLeaderElect {
             }
         }
     }
-    
-    
     
     private void affirmLeadership(Connection connection, String roleId, String candidateId) 
             throws SQLException, LeaderElectorExceptionNonRecoverable {

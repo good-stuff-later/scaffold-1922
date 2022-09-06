@@ -14,6 +14,7 @@
 
     <modules>
         <module>library</module>
+        <module>spring-boot</module>
         <module>spring-integration</module>
         <module>examples</module>
     </modules>

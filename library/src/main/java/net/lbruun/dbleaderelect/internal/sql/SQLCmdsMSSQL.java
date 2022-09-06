@@ -74,4 +74,8 @@ public class SQLCmdsMSSQL extends SQLCmds {
         return preparedStatement;
     }
 
+    @Override
+    public boolean isTableAlreadyExistException(SQLException ex) {
+        return (ex.getSQLState().equals("S0001") && (ex.getErrorCode() == 2714));
+    }
 }

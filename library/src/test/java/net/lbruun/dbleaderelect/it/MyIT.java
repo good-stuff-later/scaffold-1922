@@ -84,7 +84,7 @@ public class MyIT {
         BlockingQueue<LeaderElectorListener.Event> queue = new LinkedBlockingQueue<>();
         LeaderElectorListener leaderElectorListener = new LeaderElectorListener(){
             @Override
-            public void onLeaderElectionEvent(LeaderElectorListener.Event event) {
+            public void onLeaderElectionEvent(LeaderElectorListener.Event event, LeaderElector leaderElector) {
                 queue.add(event);
             }
         };

@@ -13,20 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.lbruun.dbleaderelection.example2.jpa;
+package net.lbruun.dbleaderelection.example3;
 
-import java.util.EnumSet;
-import org.springframework.core.GenericTypeResolver;
-import org.springframework.core.convert.converter.Converter;
-import org.springframework.core.convert.converter.ConverterFactory;
+import net.lbruun.dbleaderelect.LeaderElectorListener;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-public class MyFactory implements ConverterFactory<String, EnumSet> {
-
-    @Override
-    public <T extends EnumSet> Converter<String, T> getConverter(Class<T> targetType) {
-        Class<?>[] resolveTypeArguments = GenericTypeResolver.resolveTypeArguments(targetType, Enum.class);
-        return null;
+/**
+ *
+ */
+@Configuration
+public class LeaderElectionExampleConfiguration {
+    
+    @Bean
+    public LeaderElectorListener leaderElectorListener() {
+        return new LeaderElectionExampleListener();
     }
-
-
 }

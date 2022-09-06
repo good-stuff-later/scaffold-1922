@@ -198,7 +198,7 @@ public class LeaderElectorConfiguration {
         return queryTimeoutSecs;
     }
 
-    public boolean getCreateTable() {
+    public boolean createTable() {
         return createTable;
     }
 
@@ -328,7 +328,7 @@ public class LeaderElectorConfiguration {
             withQueryTimeoutSecs(configuration.getQueryTimeoutSecs());
             withSchemaName(configuration.getSchemaName());
             withTableName(configuration.getTableName());
-            withCreateTable(configuration.getCreateTable());
+            withCreateTable(configuration.createTable());
         }
 
         /**

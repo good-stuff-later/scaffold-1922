@@ -60,4 +60,9 @@ public class SQLCmdsOracle extends SQLCmds {
     public String getBigIntStr() {
         return "number(38)";
     }
+
+    @Override
+    public boolean isTableAlreadyExistException(SQLException ex) {
+        return (ex.getSQLState().equals("42000") && (ex.getErrorCode() == 955));
+    }
 }

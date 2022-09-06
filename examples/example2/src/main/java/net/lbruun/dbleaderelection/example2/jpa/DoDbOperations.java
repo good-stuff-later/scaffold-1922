@@ -16,6 +16,9 @@
 package net.lbruun.dbleaderelection.example2.jpa;
 
 import java.time.LocalDate;
+import net.lbruun.dbleaderelection.example2.LeaderElectionExampleListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -25,6 +28,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class DoDbOperations implements ApplicationRunner {
+
+    private static final Logger logger = LoggerFactory.getLogger(DoDbOperations.class);
 
     private final PersonRepo personRepo;
 
@@ -42,10 +47,11 @@ public class DoDbOperations implements ApplicationRunner {
             person.setLastName("Duck");
             person.setBirthDate(LocalDate.of(1934, 6, 9));
             personRepo.save(person);
+            logger.info("Saved record : " + person);
         }
         
         for(Person person : personRepo.findAll()) {
-            System.out.println("Found person: " + person);
+            logger.info("Retrieved from table : " + person);
         }
     }
     
