@@ -39,11 +39,11 @@ import org.junit.jupiter.api.Test;
 /**
  *
  */
-public class PostgresPwdChangeTest {
+public class PostgresPwdChangeTest_Disabled {
 
     private static DataSource DS;
 
-    public PostgresPwdChangeTest() {
+    public PostgresPwdChangeTest_Disabled() {
     }
 
     @BeforeAll

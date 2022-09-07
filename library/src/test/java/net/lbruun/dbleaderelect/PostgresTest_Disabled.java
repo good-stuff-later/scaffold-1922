@@ -39,13 +39,13 @@ import org.junit.jupiter.api.Test;
 /**
  *
  */
-public class PostgresTest {
+public class PostgresTest_Disabled {
     
     private static DataSource DS;
     private static String tmpTableName;
     private static LiquibaseRunner liquibaseRunner;
 
-    public PostgresTest() {
+    public PostgresTest_Disabled() {
     }
 
     @BeforeAll

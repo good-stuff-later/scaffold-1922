@@ -51,15 +51,16 @@ public class NodeIdUtils {
      * Gets the name of the current host.
      * 
      * <p>
-     * On Windows hosts it is the value of the {@code %COMPUTERNAME%}
-     * OS environment variable. On Unix-like hosts it is the value of the
-     * {@code $HOSTNAME} OS environment variable.
-     * 
+     * On Windows hosts it is the value of the {@code %COMPUTERNAME%} OS
+     * environment variable. On Unix-like hosts it is the value of the
+     * {@code $HOSTNAME} OS environment variable or alternatively the resultStdOut of
+ executing the {@code hostname} OS command.
+     *
      * <p>
      * Unlike {@link #getNetworkHostname()} this does not require a (potential)
-     * call to DNS and the method will generally always give a result even if
-     * the host is not networked. And it will never block on a network operation
-     * as it performs none.
+ call to DNS and the method will generally always give a resultStdOut even if
+ the host is not networked. And it will never block on a network operation
+ as it performs none.
      *
      * 
      * @return computer name or {@code null}
@@ -84,7 +85,7 @@ public class NodeIdUtils {
                 return nodename;
             } else {
                 // Get it by capturing output of 'hostname' command
-                nodename = execOsCommand("hostname");
+                nodename = execOsCommand("hostname", 5);
                 if (nodename != null) {
                     return nodename;
                 }
@@ -104,8 +105,8 @@ public class NodeIdUtils {
      * There are a number of caveats with this approach:
      * <ul>
      *   <li>If the host is not on a network the host will have no network name.</li>
-     *   <li>If the host has multiple network interfaces the result of this 
-     *       method is indeterminate.</li>
+     *   <li>If the host has multiple network interfaces the resultStdOut of this 
+       method is indeterminate.</li>
      *   <li>In some circumstances the method will require a call to DNS. 
      *       Such call may block for a period of time.</li>
      * </ul>
@@ -283,20 +284,41 @@ public class NodeIdUtils {
         throw new UnsupportedOperationException("Cannot derive pid from " + processIdAndHostname);
     }
     
-    
-    private static String execOsCommand(String cmd) {
+    /**
+     * Executes an OS command and capture the stdout as a string.
+     * The method is meant for OS command that do not prompt for input
+     * and which returns a very short result, typically a one-liner.
+     * @param cmd
+     * @param timeoutSecs
+     * @return 
+     */
+    private static String execOsCommand(String cmd, int timeoutSecs) {
         try {
             Process process = Runtime.getRuntime().exec(cmd);
-            ByteArrayOutputStream result = new ByteArrayOutputStream();
-            InputStream inputStream = process.getInputStream();
+            ByteArrayOutputStream resultStdOut = new ByteArrayOutputStream();
+            ByteArrayOutputStream resultStdErr = new ByteArrayOutputStream();
+            InputStream inputStreamStdOut = process.getInputStream();
+            InputStream inputStreamStdErr = process.getErrorStream();
             byte[] buffer = new byte[512];
-            for (int length; (length = inputStream.read(buffer)) != -1;) {
-                result.write(buffer, 0, length);
+            
+            
+            if (!process.waitFor(timeoutSecs, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return null;
+            } else {
+                // Consume all of stdout
+                for (int length; (length = inputStreamStdOut.read(buffer)) != -1;) {
+                    resultStdOut.write(buffer, 0, length);
+                }
+                // Consume all of stderr
+                for (int length; (length = inputStreamStdErr.read(buffer)) != -1;) {
+                    resultStdErr.write(buffer, 0, length);
+                }
             }
-            process.waitFor(5, TimeUnit.SECONDS);
+            
             int exitValue = process.exitValue();
             if (exitValue == 0) {
-                return result.toString("UTF-8");
+                return resultStdOut.toString("UTF-8");
             } else {
                 return null;
             }
