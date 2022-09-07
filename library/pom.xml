@@ -5,7 +5,6 @@
         <groupId>net.lbruun.dbleaderelection</groupId>
         <artifactId>parent</artifactId>
         <version>0.9.2-SNAPSHOT</version>
-        <relativePath></relativePath>
     </parent>
     <artifactId>library</artifactId>
     <packaging>jar</packaging>
