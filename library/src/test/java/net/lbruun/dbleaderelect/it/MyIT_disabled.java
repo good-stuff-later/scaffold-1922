@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Assertions;
  */
 
 @Testcontainers
-public class MyIT {
+public class MyIT_disabled {
     
     private LiquibaseRunner liquibaseRunner;
     private HikariDataSource dataSource;

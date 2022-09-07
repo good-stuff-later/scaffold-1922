@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  * @author lars
  */
 
-public class DbLockIT {
+public class DbLockIT_disabled {
     
     private static final String SQL = 
             "SELECT "
