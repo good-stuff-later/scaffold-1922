@@ -296,7 +296,7 @@ public class NodeIdUtils {
             process.waitFor(5, TimeUnit.SECONDS);
             int exitValue = process.exitValue();
             if (exitValue == 0) {
-                return result.toString(StandardCharsets.UTF_8);
+                return result.toString("UTF-8");
             } else {
                 return null;
             }
