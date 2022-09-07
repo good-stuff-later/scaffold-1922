@@ -15,15 +15,22 @@
  */
 package net.lbruun.dbleaderelect.utils;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import net.lbruun.dbleaderelect.internal.utils.HexUtils;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Methods for building a node id.
@@ -69,12 +76,18 @@ public class NodeIdUtils {
             // If it is not Windows then it is most likely a Unix-like operating
             // system (e.g. Linux or Mac OS)
 
-            // Most modern shells such as Bash or derivatives sets the 
+            // Many shells such as Bash or derivatives sets the 
             // HOSTNAME variable. Kubernetes also sets it (to the name of the
             // pod, not the name of the node)
             nodename = System.getenv("HOSTNAME");
             if (nodename != null) {
                 return nodename;
+            } else {
+                // Get it by capturing output of 'hostname' command
+                nodename = execOsCommand("hostname");
+                if (nodename != null) {
+                    return nodename;
+                }
             }
         }
         return null;
@@ -270,4 +283,25 @@ public class NodeIdUtils {
         throw new UnsupportedOperationException("Cannot derive pid from " + processIdAndHostname);
     }
     
+    
+    private static String execOsCommand(String cmd) {
+        try {
+            Process process = Runtime.getRuntime().exec(cmd);
+            ByteArrayOutputStream result = new ByteArrayOutputStream();
+            InputStream inputStream = process.getInputStream();
+            byte[] buffer = new byte[512];
+            for (int length; (length = inputStream.read(buffer)) != -1;) {
+                result.write(buffer, 0, length);
+            }
+            process.waitFor(5, TimeUnit.SECONDS);
+            int exitValue = process.exitValue();
+            if (exitValue == 0) {
+                return result.toString(StandardCharsets.UTF_8);
+            } else {
+                return null;
+            }
+        } catch (IOException | InterruptedException ex) {
+            return null;
+        }
+    }
 }
