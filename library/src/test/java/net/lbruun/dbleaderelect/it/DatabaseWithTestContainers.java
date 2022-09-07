@@ -67,6 +67,9 @@ public abstract class DatabaseWithTestContainers {
             config.setJdbcUrl(getJdbcDatabaseContainer().getJdbcUrl());
             config.setUsername(getJdbcDatabaseContainer().getUsername());
             config.setPassword(getJdbcDatabaseContainer().getPassword());
+            if (getDriverClassName() != null) {
+                config.setDriverClassName(getDriverClassName());
+            }
         }
         config.setConnectionTimeout(3000);
 
@@ -98,6 +101,10 @@ public abstract class DatabaseWithTestContainers {
     
     public DataSource getDataSource() {
         return dataSource;
+    }
+    
+    public String getDriverClassName() {
+        return null;
     }
     
     public abstract LeaderElectorConfiguration getLeaderElectorConfiguration(String schemaName, String tableName);

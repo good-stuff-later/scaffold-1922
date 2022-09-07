@@ -58,4 +58,9 @@ public class DatabaseWithTestContainersDb2IT extends DatabaseWithTestContainers 
                 .withTableName(tableName)
                 .withSchemaName(schemaName).build();
     }
+
+    @Override
+    public String getDriverClassName() {
+        return "com.ibm.db2.jcc.DB2Driver";
+    }
 }
