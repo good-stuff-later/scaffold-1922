@@ -80,8 +80,12 @@ public abstract class DatabaseWithTestContainers {
     @AfterEach
     public void tearDown() {
         System.out.println("Executing @AfterEach tearDown()");
-        liquibaseRunner.execEnd();
-        dataSource.close();
+        if (liquibaseRunner != null) {
+            liquibaseRunner.execEnd();
+        }
+        if (dataSource != null) {
+            dataSource.close();
+        }
     }
 
     public DataSource getSpecialDataSource() {

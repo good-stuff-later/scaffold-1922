@@ -26,7 +26,7 @@ jobs:
         cache: maven
       
     - name: Build with Maven
-      run: mvn -B -DskipTests package
+      run: mvn -B package
 
     - name: Maven integration tests
       run: mvn -B failsafe:integration-test
