@@ -337,7 +337,9 @@ public abstract class DatabaseWithTestContainers {
                 try (PreparedStatement stmt = sqlCmds.getCreateTableStmt(connection)) {
                     stmt.execute();
                 } catch (SQLException ex) {
-                    assertTrue(sqlCmds.isTableAlreadyExistException(ex));
+                    if (!sqlCmds.isTableAlreadyExistException(ex)) {
+                        throw ex;
+                    }
                 }                
                 SQLUtilsTestHelper.dropTable(connection, config.getSchemaName(), config.getTableName());
             }
