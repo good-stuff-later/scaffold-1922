@@ -83,6 +83,6 @@ public class SQLCmdsDb2 extends SQLCmds {
 
     @Override
     public boolean isTableAlreadyExistException(SQLException ex) {
-        return (ex.getSQLState().equals("42710") && (ex.getErrorCode() == 601));
+        return (ex.getSQLState().equals("42710") && (ex.getErrorCode() == -601));
     }
 }
