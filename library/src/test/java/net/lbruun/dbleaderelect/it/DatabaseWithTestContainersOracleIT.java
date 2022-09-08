@@ -66,5 +66,8 @@ public class DatabaseWithTestContainersOracleIT extends DatabaseWithTestContaine
                 .build();
     }
 
-    
+    @Override
+    public String getDriverClassName() {
+        return "oracle.jdbc.driver.OracleDriver";
+    }
 }
